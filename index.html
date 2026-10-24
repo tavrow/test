@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#f5f6f8">
+<title>Lee's Spline Sketch</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#17212e;background:#f5f6f8}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}#app{display:flex;flex-direction:column;height:100dvh}header{display:flex;align-items:center;gap:6px;padding:8px 10px;background:#fff;border-bottom:1px solid #dce1e8;flex-wrap:wrap;z-index:2}button{appearance:none;border:1px solid #ccd4df;background:#fff;border-radius:9px;padding:9px 11px;font-size:14px;color:#17212e;min-height:38px}button.active{background:#1e66e5;color:white;border-color:#1e66e5}button:disabled{opacity:.35}.sep{width:1px;height:27px;background:#dce1e8;margin:0 3px}label{display:flex;align-items:center;gap:6px;font-size:12px;color:#526074}input[type=range]{width:80px}#stage{flex:1;position:relative;min-height:0}svg{display:block;width:100%;height:100%;background:#fff;touch-action:none;user-select:none;-webkit-user-select:none}#hint{position:absolute;bottom:10px;left:10px;background:#ffffffdc;color:#465367;border:1px solid #e0e6ef;border-radius:9px;padding:8px;font-size:12px;pointer-events:none;max-width:min(90vw,500px)}#stats{margin-left:auto;color:#617085;font-size:12px}#toast{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:#17212eea;color:#fff;padding:8px 13px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;font-size:13px}#toast.show{opacity:1}@media(max-width:700px){header{padding:6px;gap:4px}button{font-size:13px;padding:8px}#stats{display:none}#hint{font-size:11px}label{font-size:11px}}
+</style></head>
+<body><div id="app"><header>
+<button data-mode="draw" class="active">✏️ Draw</button><button data-mode="move">↔ Move</button><button data-mode="edit">✥ Reshape</button><button data-mode="pan">✋ Pan</button><span class="sep"></span>
+<label>Error <input id="tolerance" type="range" min="2" max="30" value="12" step="1"><span id="tolOut">12</span> px</label><span class="sep"></span>
+<label style="white-space:nowrap"><input id="tangents" type="checkbox" checked> Red tangents</label><label style="white-space:nowrap"><input id="projection" type="checkbox" checked> Green projection</label><span class="sep"></span><button id="undoSegment" title="Remove last segment of current stroke" disabled>↤ Back segment</button><button id="undo" title="Undo">↶</button><button id="redo" title="Redo">↷</button><button id="del" title="Delete selection">Delete</button><button id="group">Group</button><button id="ungroup">Ungroup</button><label style="white-space:nowrap"><input type="checkbox" id="addSelect"> Add selection</label><span class="sep"></span>
+<button id="zoomOut">−</button><button id="resetView">100%</button><button id="zoomIn">+</button><span class="sep"></span>
+<button id="export">Save SVG</button><button id="save">Save</button><button id="load">Open</button><input type="file" id="file" accept=".json,application/json" hidden>
+<span id="stats"></span>
+</header><div id="stage"><svg id="canvas" xmlns="http://www.w3.org/2000/svg"><g id="world"><g id="art"></g><g id="controls"></g></g></svg><div id="toast"></div><div id="hint"></div></div></div>
+<script>
+(()=>{'use strict';
+const NS='http://www.w3.org/2000/svg',svg=document.querySelector('#canvas'),world=document.querySelector('#world'),art=document.querySelector('#art'),controls=document.querySelector('#controls');
+const $=id=>document.getElementById(id);let mode='draw', strokes=[], selected=null, draft=null, gesture=null, pointers=new Map(),nextId=1;
+let selectedIds=new Set(),nextGroup=1,selectionRect=null;let view={x:0,y:0,s:1};let undoStack=[],redoStack=[];
+const cp=p=>({x:p.x,y:p.y}),add=(a,b)=>({x:a.x+b.x,y:a.y+b.y}),sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y}),mul=(p,k)=>({x:p.x*k,y:p.y*k}),dot=(a,b)=>a.x*b.x+a.y*b.y,len=p=>Math.hypot(p.x,p.y),dist=(a,b)=>len(sub(a,b)),norm=p=>{let l=len(p);return l>1e-9?mul(p,1/l):{x:1,y:0}};
+function qpoint(s,t){let u=1-t;return add(add(mul(s.p0,u*u),mul(s.c,2*u*t)),mul(s.p1,t*t))}
+function dpath(segs){return segs.map((s,i)=>`${i?'':'M '+s.p0.x+' '+s.p0.y+' '}Q ${s.c.x} ${s.c.y} ${s.p1.x} ${s.p1.y}`).join(' ')}
+function node(tag,attrs,parent){let el=document.createElementNS(NS,tag);for(let k in attrs)el.setAttribute(k,attrs[k]);parent.appendChild(el);return el}
+function screenPoint(e){let r=svg.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
+function worldPoint(e){let p=screenPoint(e);return{x:(p.x-view.x)/view.s,y:(p.y-view.y)/view.s}}
+function applyView(){world.setAttribute('transform',`translate(${view.x} ${view.y}) scale(${view.s})`);$('stats').textContent=`${strokes.length} strokes · ${strokes.reduce((n,s)=>n+s.segs.length,0)} curves · ${Math.round(view.s*100)}%`}
+function setZoom(s,anchor){let before={x:(anchor.x-view.x)/view.s,y:(anchor.y-view.y)/view.s};view.s=Math.max(.15,Math.min(12,s));view.x=anchor.x-before.x*view.s;view.y=anchor.y-before.y*view.s;applyView();render()}
+function center(){return{x:svg.clientWidth/2,y:svg.clientHeight/2}}
+function snapshot(){return JSON.stringify({strokes,selected,nextId,nextGroup,selectedIds:[...selectedIds]})}
+function checkpoint(){undoStack.push(snapshot());if(undoStack.length>80)undoStack.shift();redoStack=[];buttons()}
+function restore(str){let x=JSON.parse(str);strokes=x.strokes;selected=x.selected;selectedIds=new Set(x.selectedIds|| (selected===null?[]:[selected]));nextId=x.nextId;nextGroup=x.nextGroup||1;draft=null;render()}
+function undo(){if(!undoStack.length)return;redoStack.push(snapshot());restore(undoStack.pop());buttons()}
+function redo(){if(!redoStack.length)return;undoStack.push(snapshot());restore(redoStack.pop());buttons()}
+function buttons(){$('undo').disabled=!undoStack.length;$('redo').disabled=!redoStack.length;$('del').disabled=!selectedIds.size;$('group').disabled=selectedIds.size<2;$('ungroup').disabled=![...selectedIds].some(id=>strokeById(id)?.group!=null)}
+// Quadratic least-squares fit to EVERY sample in the active tail. The two
+// endpoints are fixed. After the first segment, the start tangent is fixed.
+// Frozen segments are never modified.
+function fitTail(points, incoming=null) {
+  if(points.length<2)return null;
+  const p0=points[0], p1=points[points.length-1];
+  const lengths=[0];let total=0;
+  for(let i=1;i<points.length;i++){total+=dist(points[i-1],points[i]);lengths.push(total)}
+  if(total<0.05)return null;
+  let ts=lengths.map(x=>x/total), seg, maxErr=0, rms=0;
+  // Initial chord-length parameters. Refine with closest-curve projections:
+  // this reduces sensitivity to stylus speed and unequal sample spacing.
+  for(let iteration=0;iteration<3;iteration++){
+    let c;
+    if(incoming){
+      let num=0,den=0;
+      for(let i=1;i<points.length-1;i++){
+        let t=ts[i],u=1-t,a=2*u*t;
+        const base=add(mul(p0,u*u+a),mul(p1,t*t));
+        num+=a*dot(incoming,sub(points[i],base));den+=a*a;
+      }
+      // c = p0 + alpha * incoming, keeps the existing tangent direction.
+      let alpha=den>1e-12?num/den:total/2;
+      alpha=Math.max(0.01,Math.min(alpha,Math.max(total,dist(p0,p1))*1.5));
+      c=add(p0,mul(incoming,alpha));
+    }else{
+      let sum={x:0,y:0},den=0;
+      for(let i=1;i<points.length-1;i++){
+        const t=ts[i],u=1-t,a=2*u*t;
+        const base=add(mul(p0,u*u),mul(p1,t*t));
+        sum=add(sum,mul(sub(points[i],base),a));den+=a*a;
+      }
+      c=den>1e-12?mul(sum,1/den):mul(add(p0,p1),0.5);
+    }
+    seg={p0:cp(p0),c,p1:cp(p1)};
+    if(iteration===2)break;
+    // Find closest points near the previous parameter, preserving order.
+    // A monotonic search prevents jumping to a different side of a loop.
+    const next=ts.slice();
+    for(let i=1;i<points.length-1;i++){
+      const low=Math.max(ts[i-1]+1e-6,ts[i]-.12);
+      const high=Math.min(ts[i+1]-1e-6,ts[i]+.12);
+      if(low>=high)continue;
+      let best=ts[i],bestD=Infinity;
+      for(let k=0;k<=12;k++){
+        let t=low+(high-low)*k/12, d=dist(qpoint(seg,t),points[i]);
+        if(d<bestD){bestD=d;best=t}
+      }
+      next[i]=best;
+    }
+    ts=next;
+  }
+  for(let i=0;i<points.length;i++){
+    let d=dist(points[i],qpoint(seg,ts[i]));
+    maxErr=Math.max(maxErr,d);rms+=d*d;
+  }
+  return {seg,maxErr,rms:Math.sqrt(rms/points.length),length:total};
+}
+// Signed geometric curvature at a quadratic segment endpoint (1/pixel).
+// Penalizing a curvature jump reduces the flattened/pointed transitions that
+// remain possible even when neighboring tangent directions match exactly.
+function endCurvature(s){
+  const v=sub(s.p1,s.c), a=add(sub(s.p1,mul(s.c,2)),s.p0);
+  const n=len(v);
+  return n<1e-4?null:(v.x*a.y-v.y*a.x)/(2*n*n*n);
+}
+function startCurvature(s){
+  const v=sub(s.c,s.p0), a=add(sub(s.p1,mul(s.c,2)),s.p0);
+  const n=len(v);
+  return n<1e-4?null:(v.x*a.y-v.y*a.x)/(2*n*n*n);
+}
+function curvatureCost(first,next,tol,scale){
+  const a=endCurvature(first), b=startCurvature(next);
+  if(a===null || b===null)return tol*3;
+  // Curvature times a characteristic 35-pixel length gives turning angle.
+  // Make curvature consistency important without overriding fit accuracy.
+  const turnDifference=Math.min(2,Math.abs(a-b)*Math.min(50,Math.max(22,scale*.3)));
+  const arm1=dist(first.p1,first.c),arm2=dist(next.c,next.p0);
+  const nearCusp=Math.min(1,Math.max(0,8/Math.max(arm1,arm2,1)-.25));
+  return (tol*.9)*turnDifference+tol*nearCusp;
+}
+function newDraft(p){return {raw:[cp(p)],segs:[],joins:[],start:0,active:null}}
+// Undo one committed segment while the pointer is still drawing.
+// Discard its samples and the unfinished tail; the next pointer samples resume
+// from the previous junction, without modifying any older segment.
+function backSegment(){
+  if(!draft || gesture?.kind!=='draw')return;
+  if(draft.segs.length){
+    draft.segs.pop();
+    draft.start=draft.joins.pop()??0;
+    draft.raw.length=draft.start+1;
+    draft.active=null;
+  }else if(draft.raw.length>1){
+    draft.raw.length=1;
+    draft.active=null;
+  }
+  render();
+}
+function refreshSegmentButton(){$('undoSegment').disabled=!(draft && gesture?.kind==='draw' && (draft.segs.length || draft.raw.length>1))}
+function updateDraft(p,finish=false){
+  if(!draft)return;
+  if(p)simplifyInput(draft.raw,p);
+  const raw=draft.raw;
+  if(raw.length<2)return;
+  const tol=Number($('tolerance').value)/view.s;
+
+  // If a fit fails, move the junction back to a previous real stylus sample.
+  // The earliest possible split must still have enough points to be stable.
+  for(let pass=0;pass<80;pass++){
+    const prev=draft.segs.at(-1);
+    const dir=prev?norm(sub(prev.p1,prev.c)):null;
+    let tail=raw.slice(draft.start);
+    const fit=fitTail(tail,dir);
+    if(!fit)break;
+    draft.active=fit.seg;
+    if(fit.maxErr<=tol || tail.length<6)break;
+    const last=raw.length-1;
+    // Backtrack far enough that the next segment has a meaningful run-up.
+    // Prefer the longest valid earlier segment, subject to fitting tolerance.
+    let chosen=null;
+    const maxJ=last-3;
+    for(let j=maxJ;j>=draft.start+3;j--){
+      let first=fitTail(raw.slice(draft.start,j+1),dir);
+      if(!first || first.maxErr>tol)continue;
+      // Do not force very short curves unless the error is already severe.
+
+      // Prefer a junction whose outgoing tangent won't immediately double back.
+      let next=fitTail(raw.slice(j),norm(sub(first.seg.p1,first.seg.c)));
+      if(!next)continue;
+      const newLen=next.length;
+      // Score BOTH fits. The previous version optimized only the new tail,
+      // often choosing a join at which curvature changed abruptly.
+      const smoothness=curvatureCost(first.seg,next.seg,tol,first.length);
+      const endPenalty=(newLen<12/view.s)?tol*1.3:0;
+      const score=Math.max(first.maxErr,next.maxErr)*.6 + next.rms*.35 +
+        first.rms*.15 + smoothness*2 + endPenalty;
+      if(!chosen || score<chosen.score-0.15 ||
+         (Math.abs(score-chosen.score)<0.15 && j>chosen.j))chosen={j,first,score};
+      // Avoid moving the junction too far backwards after finding good fit.
+      if(chosen && j<last-Math.max(20,Math.round(tail.length*.55)))break;
+    }
+    if(!chosen){
+      // Hold off committing when too few samples exist; try again on next move.
+      break;
+    }
+    draft.joins.push(draft.start);
+    draft.segs.push(chosen.first.seg); // permanently frozen
+    draft.start=chosen.j;
+    draft.active=null;
+  }
+  if(finish){
+    const prev=draft.segs.at(-1);
+    const final=fitTail(raw.slice(draft.start),prev?norm(sub(prev.p1,prev.c)):null);
+    if(final)draft.segs.push(final.seg);
+    draft.active=null;
+  }
+}
+function draftSegments(){return draft?[...draft.segs,...(draft.active?[draft.active]:[])]:[]}
+function simplifyInput(points,p){if(!points.length||dist(points[points.length-1],p)>Math.max(.5,0.7/view.s))points.push(cp(p))}
+function hitStroke(p){let chosen=null,best=13/view.s;for(let i=strokes.length-1;i>=0;i--){let stroke=strokes[i];for(let seg of stroke.segs){let old=seg.p0;for(let j=1;j<=30;j++){let now=qpoint(seg,j/30),ab=sub(now,old),v=sub(p,old),t=Math.max(0,Math.min(1,dot(v,ab)/(dot(ab,ab)||1))),d=dist(p,add(old,mul(ab,t)));if(d<best){best=d;chosen=stroke.id}old=now}}}return chosen}
+function strokeById(id){return strokes.find(s=>s.id===id)}
+function tangentMarkers(segs){
+  if(!$('tangents').checked)return;
+  const px=20/view.s;
+  // At each junction draw 20 screen pixels backward along the OLD tangent,
+  // and 20 screen pixels forward along the NEW tangent.
+  // Both are red; old=dark solid, new=bright dashed, so mismatches are visible.
+  for(let i=1;i<segs.length;i++){
+    const a=segs[i-1],b=segs[i],joint=a.p1;
+    const vin=sub(a.p1,a.c),vout=sub(b.c,b.p0);
+    if(len(vin)>1e-6){const q=sub(joint,mul(norm(vin),px));node('line',{x1:joint.x,y1:joint.y,x2:q.x,y2:q.y,stroke:'#c00000','stroke-width':2/view.s,'stroke-linecap':'round','pointer-events':'none'},controls)}
+    if(len(vout)>1e-6){const q=add(joint,mul(norm(vout),px));node('line',{x1:joint.x,y1:joint.y,x2:q.x,y2:q.y,stroke:'#ff3838','stroke-width':2/view.s,'stroke-dasharray':`${5/view.s} ${3/view.s}`,'stroke-linecap':'round','pointer-events':'none'},controls)}
+    node('circle',{cx:joint.x,cy:joint.y,r:2.5/view.s,fill:'#e11','pointer-events':'none'},controls);
+  }
+}
+function render(){refreshSegmentButton();art.replaceChildren();controls.replaceChildren();for(let st of strokes){node('path',{d:dpath(st.segs),fill:'none',stroke:selectedIds.has(st.id)?'#1e66e5':'#17212e','stroke-width':(selectedIds.has(st.id)?3.2:2.5)/view.s,'stroke-linecap':'round','stroke-linejoin':'round'},art);tangentMarkers(st.segs)}
+// Frozen spline segments are drawn as soon as they are committed.
+// The only temporary raw ink is the tail that has not yet been frozen.
+if(draft){
+ if(draft.segs.length) {
+   node('path',{d:dpath(draft.segs),fill:'none',stroke:'#17212e',
+     'stroke-width':2.5/view.s,'stroke-linecap':'round','stroke-linejoin':'round','pointer-events':'none'},art);
+   tangentMarkers(draft.segs);
+ }
+ const raw=draft.raw.slice(draft.start);
+ if(raw.length>1){
+   const path='M '+raw[0].x+' '+raw[0].y+' '+raw.slice(1).map(p=>'L '+p.x+' '+p.y).join(' ');
+   node('path',{d:path,fill:'none',stroke:'#17212e','stroke-width':2.5/view.s,
+     'stroke-linecap':'round','stroke-linejoin':'round','pointer-events':'none'},art);
+ }
+}
+if(draft?.active && $('projection').checked){
+ const s=draft.active,tip=s.p1;
+ // Draw 30 *screen* pixels beyond t=1 on the SAME quadratic polynomial.
+ // Parameterize extrapolation by approximate traveled curve distance.
+ let endT=1,prev=tip,length=0;
+ const target=150/view.s;
+ while(length<target && endT<4){
+   const nextT=endT+.0125,pt=qpoint(s,nextT);
+   length+=dist(prev,pt);endT=nextT;prev=pt;
+ }
+ 
+ // Use original polynomial evaluated over t=1..endT as an SVG quadratic.
+ // Its midpoint is the quadratic Bezier control-point reconstruction.
+ const mid=qpoint(s,(1+endT)/2),control=sub(mul(mid,2),mul(add(tip,prev),.5));
+ node('path',{d:`M ${tip.x} ${tip.y} Q ${control.x} ${control.y} ${prev.x} ${prev.y}`,fill:'none',stroke:'#16b34b','stroke-width':2.5/view.s,'stroke-linecap':'round','pointer-events':'none'},controls);
+}
+if(selectionRect){let a=selectionRect.a,b=selectionRect.b;node('rect',{x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),width:Math.abs(b.x-a.x),height:Math.abs(b.y-a.y),fill:'#1e66e511',stroke:'#1e66e5','stroke-width':1.5/view.s,'stroke-dasharray':`${6/view.s} ${4/view.s}`,'pointer-events':'none'},controls)}
+applyView();buttons()}
+// Find the nearest point along a stroke, including its normalized path distance.
+function closestOnStroke(st,p){
+ let total=0, lengths=[];
+ for(let seg of st.segs){let l=0,prev=qpoint(seg,0);for(let j=1;j<=32;j++){let now=qpoint(seg,j/32);l+=dist(now,prev);prev=now}lengths.push(l);total+=l}
+ let best={distance:Infinity,s:0},before=0;
+ st.segs.forEach((seg,i)=>{
+   let prev=qpoint(seg,0),walk=0;
+   for(let j=1;j<=48;j++){
+     let now=qpoint(seg,j/48),v=sub(now,prev),u=Math.max(0,Math.min(1,dot(sub(p,prev),v)/(dot(v,v)||1)));
+     let q=add(prev,mul(v,u)),d=dist(p,q);
+     if(d<best.distance)best={distance:d,s:before+lengths[i]*(j-1+u)/48,point:q};
+     prev=now;
+   }
+   before+=lengths[i];
+ });
+ return {...best,total,lengths};
+}
+// Drag a point on the stroke. Deform smoothly in arc-length space;
+// identical weights at shared junctions keep the spline connected.
+// Each gesture uses an immutable baseline to prevent accumulated drift.
+function deformStroke(st,base,grabS,delta,radius){
+ // A strong, narrow Gaussian displacement can fold a curve over itself.
+ // Increase the affected arc length as the requested movement grows.
+ // For a Gaussian, max |w'(s)| = exp(-1/2)/sigma. Keeping
+ // |delta| * max|w'| well below 1 avoids reversing the local stroke.
+ const sigma=Math.max(radius,1.35*len(delta));
+ const weight=s=>Math.exp(-.5*Math.pow((s-grabS)/sigma,2));
+ const slope=s=>-(s-grabS)/(sigma*sigma)*weight(s);
+ let arclen=0;
+ const result=base.segs.map((seg,i)=>{
+   const a=arclen,b=a+base.lengths[i];arclen=b;
+   const wa=weight(a),wb=weight(b),span=b-a;
+   // Endpoint offsets are shared by neighbors, so joins stay connected.
+   // For the control point, match the displaced derivatives as closely as
+   // a single quadratic allows. The symmetric expression stays stable for
+   // very large drags and approaches the Gaussian midpoint on short arcs.
+   const fromStart=wa + .5*span*slope(a);
+   const fromEnd=wb - .5*span*slope(b);
+   const wc=.5*(fromStart+fromEnd);
+   return {p0:add(seg.p0,mul(delta,wa)),
+           c:add(seg.c,mul(delta,wc)),
+           p1:add(seg.p1,mul(delta,wb))};
+ });
+ // The two quadratic handles of a join must be collinear. Orthogonally
+ // correct their directions onto one shared tangent. This is applied to
+ // temporary geometry derived from the immutable gesture baseline.
+ for(let i=0;i<result.length-1;i++){
+   const left=result[i],right=result[i+1],join=left.p1;
+   right.p0=cp(join);
+   const incoming=sub(join,left.c),outgoing=sub(right.c,join);
+   let tangent=add(norm(incoming),norm(outgoing));
+   if(len(tangent)<.15){
+     const before=sub(join,left.p0),after=sub(right.p1,join);
+     tangent=add(before,after);
+   }
+   if(len(tangent)<1e-7)continue;
+   tangent=norm(tangent);
+   // Limit extreme lever arms to the local chord lengths to prevent
+   // long overshooting spikes near tight corners.
+   const li=Math.min(len(incoming),Math.max(6,dist(left.p0,join)*1.3));
+   const ri=Math.min(len(outgoing),Math.max(6,dist(right.p1,join)*1.3));
+   left.c=sub(join,mul(tangent,li));
+   right.c=add(join,mul(tangent,ri));
+ }
+ st.segs=result;
+}
+function groupMembers(id){const st=strokeById(id);return st?.group==null?[id]:strokes.filter(s=>s.group===st.group).map(s=>s.id)}
+function selectHit(id,additive){const members=groupMembers(id);if(!additive)selectedIds.clear();if(additive&&members.every(x=>selectedIds.has(x)))members.forEach(x=>selectedIds.delete(x));else members.forEach(x=>selectedIds.add(x));selected=selectedIds.size?[...selectedIds][0]:null}
+function bbox(st){let xs=[],ys=[];for(let seg of st.segs){for(let i=0;i<=24;i++){const p=qpoint(seg,i/24);xs.push(p.x);ys.push(p.y)}}return {x0:Math.min(...xs),x1:Math.max(...xs),y0:Math.min(...ys),y1:Math.max(...ys)}}
+function selectBox(a,b,additive){let x0=Math.min(a.x,b.x),x1=Math.max(a.x,b.x),y0=Math.min(a.y,b.y),y1=Math.max(a.y,b.y);if(!additive)selectedIds.clear();for(let st of strokes){let bb=bbox(st);if(bb.x0>=x0&&bb.x1<=x1&&bb.y0>=y0&&bb.y1<=y1)groupMembers(st.id).forEach(id=>selectedIds.add(id))}selected=selectedIds.size?[...selectedIds][0]:null}
+function selectionBounds(ids){let all=ids.map(id=>strokeById(id)).filter(Boolean).map(bbox);return {x0:Math.min(...all.map(b=>b.x0)),x1:Math.max(...all.map(b=>b.x1)),y0:Math.min(...all.map(b=>b.y0)),y1:Math.max(...all.map(b=>b.y1))}}
+function scaleSelection(bases,anchor,fx,fy){for(let [id,segs] of bases){let st=strokeById(id);if(!st)continue;st.segs=segs.map(seg=>Object.fromEntries(['p0','c','p1'].map(k=>[k,{x:anchor.x+(seg[k].x-anchor.x)*fx,y:anchor.y+(seg[k].y-anchor.y)*fy}])))} }
+function moveStroke(st,delta){for(let s of st.segs){s.p0=add(s.p0,delta);s.c=add(s.c,delta);s.p1=add(s.p1,delta)}}
+function setMode(next){mode=next;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));$('hint').textContent=({draw:'Draw with finger or Pencil. Completed curves freeze immediately; only the unfinished tail follows your pointer. Green = projected next 150 px. Two fingers zoom/pan.',move:'Drag empty space for a selection box. Shift-click or toggle Add selection to add strokes. Group makes them move together.',edit:'Drag a blue stroke to reshape. A selected group stretches or squashes together. Red markers identify joins.',pan:'One finger pans. Pinch with two fingers to zoom.'})[mode];render()}
+function start(e){if(e.button!==undefined&&e.button!==0)return;e.preventDefault();svg.setPointerCapture(e.pointerId);let scr=screenPoint(e),p=worldPoint(e);pointers.set(e.pointerId,scr);
+if(pointers.size===2){if(gesture?.kind==='draw') {draft=null;render()}let a=[...pointers.values()];gesture={kind:'pinch',startView:{...view},center:mul(add(a[0],a[1]),.5),distance:dist(a[0],a[1])};return}
+if(pointers.size>2)return;
+if(mode==='pan'){gesture={kind:'pan',last:scr};return}
+if(mode==='draw'){draft=newDraft(p);gesture={kind:'draw'};return}
+let id=hitStroke(p),additive=e.shiftKey||$('addSelect').checked;
+if(mode==='move'){
+ if(id!==null){
+   if(additive){selectHit(id,true);gesture={kind:'select'};render();return}
+   if(!selectedIds.has(id))selectHit(id,false);
+   checkpoint();gesture={kind:'move',last:p,ids:[...selectedIds]};render();return;
+ }
+ selectionRect={a:p,b:p};gesture={kind:'box',additive};render();return;
+}
+if(mode==='edit'&&id!==null){
+  if(!selectedIds.has(id))selectHit(id,false);
+  let ids=[...selectedIds];
+  checkpoint();
+  if(ids.length>1 || (strokeById(id)?.group!=null)){
+    let bounds=selectionBounds(ids),base=new Map(ids.map(k=>[k,structuredClone(strokeById(k).segs)]));
+    gesture={kind:'scale',origin:p,bounds,ids,base};
+  }else{
+    const st=strokeById(id),hit=closestOnStroke(st,p);
+    const radius=Math.max(35/view.s,Math.min(hit.total*.24,155/view.s));
+    gesture={kind:'deform',id,origin:p,grabS:hit.s,base:{segs:structuredClone(st.segs),lengths:hit.lengths},radius};
+  }
+  render();return;
+}
+if(!additive){selectedIds.clear();selected=null}gesture=null;render();}
+function move(e){if(!pointers.has(e.pointerId))return;e.preventDefault();let s=screenPoint(e),p=worldPoint(e);pointers.set(e.pointerId,s);if(gesture?.kind==='pinch'&&pointers.size>=2){let a=[...pointers.values()],mid=mul(add(a[0],a[1]),.5),distance=dist(a[0],a[1]);let old=gesture.startView,zoom=Math.max(.15,Math.min(12,old.s*distance/(gesture.distance||1))),w={x:(gesture.center.x-old.x)/old.s,y:(gesture.center.y-old.y)/old.s};view={s:zoom,x:mid.x-zoom*w.x,y:mid.y-zoom*w.y};render();return}
+if(pointers.size!==1||!gesture)return;
+if(gesture.kind==='pan'){view.x+=s.x-gesture.last.x;view.y+=s.y-gesture.last.y;gesture.last=s;render()}
+else if(gesture.kind==='draw'){updateDraft(p);render()}
+else if(gesture.kind==='box'){selectionRect.b=p;render()}
+else if(gesture.kind==='move'){for(let id of gesture.ids){const st=strokeById(id);if(st)moveStroke(st,sub(p,gesture.last))}gesture.last=p;render()}
+else if(gesture.kind==='scale'){
+ const g=gesture,b=g.bounds,w=Math.max(20/view.s,b.x1-b.x0),h=Math.max(20/view.s,b.y1-b.y0);
+ const dx=p.x-g.origin.x,dy=p.y-g.origin.y;
+ const fx=Math.max(.08,1+dx/w),fy=Math.max(.08,1+dy/h);
+ scaleSelection(g.base,{x:b.x0,y:b.y0},fx,fy);render();}
+
+else if(gesture.kind==='deform'){deformStroke(strokeById(gesture.id),gesture.base,gesture.grabS,sub(p,gesture.origin),gesture.radius);render()}}
+function end(e){if(!pointers.has(e.pointerId))return;e.preventDefault();pointers.delete(e.pointerId);if(gesture?.kind==='pinch'){if(pointers.size<2)gesture=null;return}if(gesture?.kind==='draw'&&draft?.raw.length>1){updateDraft(worldPoint(e),true);let fitted=draftSegments();if(fitted.length){checkpoint();let st={id:nextId++,segs:fitted};strokes.push(st);selected=null;selectedIds.clear()}}if(gesture?.kind==='box'&&selectionRect){selectBox(selectionRect.a,selectionRect.b,gesture.additive)}selectionRect=null;draft=null;gesture=null;render()}
+svg.addEventListener('pointerdown',start);svg.addEventListener('pointermove',move);svg.addEventListener('pointerup',end);svg.addEventListener('pointercancel',end);
+svg.addEventListener('wheel',e=>{e.preventDefault();setZoom(view.s*Math.exp(-e.deltaY*.0015),screenPoint(e))},{passive:false});
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));$('tolerance').oninput=e=>$('tolOut').textContent=e.target.value;
+$('tangents').onchange=render;$('projection').onchange=render;$('undo').onclick=undo;$('redo').onclick=redo;$('del').onclick=()=>{if(!selectedIds.size)return;checkpoint();strokes=strokes.filter(s=>!selectedIds.has(s.id));selected=null;selectedIds.clear();render()};
+$('group').onclick=()=>{if(selectedIds.size<2)return;checkpoint();let g=nextGroup++;for(let id of selectedIds)strokeById(id).group=g;render()};
+$('ungroup').onclick=()=>{if(!selectedIds.size)return;checkpoint();for(let id of selectedIds){let st=strokeById(id);if(st)delete st.group}render()};
+$('zoomIn').onclick=()=>setZoom(view.s*1.35,center());$('zoomOut').onclick=()=>setZoom(view.s/1.35,center());$('resetView').onclick=()=>{view={x:0,y:0,s:1};render()};
+function download(data,name,type){let url=URL.createObjectURL(new Blob([data],{type})),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+$('export').onclick=()=>{let paths=strokes.map(st=>`<path d="${dpath(st.segs)}" fill="none" stroke="#17212e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`).join('\n');download(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-view.x/view.s} ${-view.y/view.s} ${svg.clientWidth/view.s} ${svg.clientHeight/view.s}">${paths}</svg>`,'spline-sketch.svg','image/svg+xml')};
+// Round only the exported data; do not alter in-memory editing precision.
+function compactStrokes(){
+  const round=n=>Math.round(n*1000)/1000;
+  return strokes.map(st=>({...st,segs:st.segs.map(seg=>({
+    p0:{x:round(seg.p0.x),y:round(seg.p0.y)},
+    c:{x:round(seg.c.x),y:round(seg.c.y)},
+    p1:{x:round(seg.p1.x),y:round(seg.p1.y)}
+  }))}));
+}
+$('save').onclick=()=>download(JSON.stringify({format:'spline-sketch-v2',strokes:compactStrokes()},null,2),'spline-sketch.json','application/json');$('load').onclick=()=>$('file').click();$('file').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let obj=JSON.parse(await f.text());if(!Array.isArray(obj.strokes)||!obj.strokes.every(st=>Array.isArray(st.segs)))throw Error('Not a sketch file');checkpoint();strokes=obj.strokes;nextId=1+Math.max(0,...strokes.map(s=>s.id));selected=null;selectedIds.clear();nextGroup=1+Math.max(0,...strokes.map(st=>st.group||0));render()}catch(err){alert('Could not open drawing: '+err.message)}e.target.value=''};
+$('undoSegment').addEventListener('pointerdown',e=>e.stopPropagation());$('undoSegment').onclick=backSegment;
+window.addEventListener('keydown',e=>{if(e.key==='Escape' && draft && gesture?.kind==='draw'){e.preventDefault();backSegment();return}let mod=e.metaKey||e.ctrlKey;if(mod&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo()}if(e.key==='Delete'||e.key==='Backspace'){$('del').click()}});
+setMode('draw');})();
+</script></body></html>
