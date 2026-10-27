@@ -1,26 +1,75 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta name="robots" content="noindex, nofollow">
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#f5f6f8">
-<title>Lee's Spline Sketch</title>
+<title>Spline Sketch</title>
 <style>
 :root{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#17212e;background:#f5f6f8}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}#app{display:flex;flex-direction:column;height:100dvh}header{display:flex;align-items:center;gap:6px;padding:8px 10px;background:#fff;border-bottom:1px solid #dce1e8;flex-wrap:wrap;z-index:2}button{appearance:none;border:1px solid #ccd4df;background:#fff;border-radius:9px;padding:9px 11px;font-size:14px;color:#17212e;min-height:38px}button.active{background:#1e66e5;color:white;border-color:#1e66e5}button:disabled{opacity:.35}.sep{width:1px;height:27px;background:#dce1e8;margin:0 3px}label{display:flex;align-items:center;gap:6px;font-size:12px;color:#526074}input[type=range]{width:80px}#stage{flex:1;position:relative;min-height:0}svg{display:block;width:100%;height:100%;background:#fff;touch-action:none;user-select:none;-webkit-user-select:none}#hint{position:absolute;bottom:10px;left:10px;background:#ffffffdc;color:#465367;border:1px solid #e0e6ef;border-radius:9px;padding:8px;font-size:12px;pointer-events:none;max-width:min(90vw,500px)}#stats{margin-left:auto;color:#617085;font-size:12px}#toast{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:#17212eea;color:#fff;padding:8px 13px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;font-size:13px}#toast.show{opacity:1}@media(max-width:700px){header{padding:6px;gap:4px}button{font-size:13px;padding:8px}#stats{display:none}#hint{font-size:11px}label{font-size:11px}}
+#workspace{display:flex;flex:1;min-height:0;min-width:0;position:relative}
+#toolbar{width:116px;flex:0 0 116px;display:flex;flex-direction:column;gap:5px;background:#f7f9fc;border-right:1px solid #dce1e8;padding:8px 6px;overflow-y:auto;z-index:4}
+#toolbar button{width:100%;text-align:left;padding:10px 8px;white-space:normal}
+#toolbar .tool-divider{border-top:1px solid #dce1e8;margin:5px 0}
+#optionsPanel{position:absolute;left:116px;top:0;bottom:0;width:min(340px,calc(100% - 116px));padding:12px;background:#fff;z-index:5;border-right:1px solid #dce1e8;box-shadow:6px 0 16px #0002;overflow-y:auto;display:none}
+#optionsPanel.open{display:block}
+#optionsPanel .options-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
+#optionsPanel .options-head button{min-width:42px}
+#optionsPanel .options-body{display:flex;flex-direction:column;align-items:stretch;gap:12px}
+#optionsPanel .options-body label{display:flex;align-items:center;flex-wrap:wrap;gap:7px;font-size:13px}
+#optionsPanel .options-body input[type=range]{width:130px;flex:1}
+#optionsPanel .options-body input[type=text]{width:100%;min-height:36px;border:1px solid #ccd4df;border-radius:7px;padding:7px}
+#optionsPanel .options-body .sep{width:100%;height:1px;margin:2px 0}
+#stage{min-width:0}
+#hint{left:8px}
+@media(max-width:700px){#toolbar{width:91px;flex-basis:91px;padding:6px 4px}#toolbar button{font-size:12px;padding:8px 5px}#optionsPanel{left:91px;width:min(310px,calc(100% - 91px))}#hint{max-width:calc(100% - 16px)}}
 </style></head>
-<body><div id="app"><header>
-<button data-mode="draw" class="active">✏️ Draw</button><button data-mode="move">↔ Move</button><button data-mode="edit">✥ Reshape</button><button data-mode="pan">✋ Pan</button><span class="sep"></span>
-<label>Error <input id="tolerance" type="range" min="2" max="30" value="12" step="1"><span id="tolOut">12</span> px</label><span class="sep"></span>
-<label style="white-space:nowrap"><input id="tangents" type="checkbox" checked> Red tangents</label><label style="white-space:nowrap"><input id="projection" type="checkbox" checked> Green projection</label><span class="sep"></span><button id="undoSegment" title="Remove last segment of current stroke" disabled>↤ Back segment</button><button id="undo" title="Undo">↶</button><button id="redo" title="Redo">↷</button><button id="del" title="Delete selection">Delete</button><button id="group">Group</button><button id="ungroup">Ungroup</button><label style="white-space:nowrap"><input type="checkbox" id="addSelect"> Add selection</label><span class="sep"></span>
-<button id="zoomOut">−</button><button id="resetView">100%</button><button id="zoomIn">+</button><span class="sep"></span>
-<button id="export">Save SVG</button><button id="save">Save</button><button id="load">Open</button><input type="file" id="file" accept=".json,application/json" hidden>
-<span id="stats"></span>
-</header><div id="stage"><svg id="canvas" xmlns="http://www.w3.org/2000/svg"><g id="world"><g id="art"></g><g id="controls"></g></g></svg><div id="toast"></div><div id="hint"></div></div></div>
+<body><div id="app"><div id="workspace"><nav id="toolbar" aria-label="Drawing tools">
+<button data-mode="draw" class="active">✏️ Draw</button>
+<button data-mode="move">↔ Move</button>
+<button data-mode="edit">✥ Reshape</button>
+<button data-mode="slope">⤴ Slope</button>
+<button data-mode="pan">✋ Pan</button>
+<button data-mode="image">🖼 Image position</button>
+<button data-mode="fill">▧ Fill region</button>
+<div class="tool-divider"></div>
+<button id="optionsToggle" aria-expanded="false" aria-controls="optionsPanel">⚙ Options</button>
+<div class="tool-divider"></div>
+<button id="save">Save JSON</button><button id="export">Save SVG</button><button id="load">Open JSON</button>
+<button id="undo" title="Undo">↶ Undo</button><button id="redo" title="Redo">↷ Redo</button>
+<button id="undoSegment" title="Remove last segment of current stroke" disabled>↤ Back segment</button>
+<input type="file" id="file" accept=".json,application/json" hidden>
+</nav><aside id="optionsPanel" aria-label="Drawing options"><div class="options-head"><strong>Options</strong><button id="closeOptions" aria-label="Close options">✕</button></div><div class="options-body">
+<label>Drawing name <input id="drawingName" type="text" placeholder="spline-sketch" autocomplete="off" spellcheck="false"></label>
+<label>Error <input id="tolerance" type="range" min="2" max="30" value="12" step="1"><span id="tolOut">12</span> px</label>
+<label>Snap <input id="snapDist" type="range" min="0" max="35" value="14" step="1"><span id="snapOut">14</span> px</label>
+<label>Corner <input id="corner" type="range" min="25" max="100" value="60" step="5"><span id="cornerOut">60</span>°</label>
+<label>Influence <input id="influence" type="range" min="5" max="100" value="35" step="1"><span id="influenceOut">35</span>%</label>
+<label><input id="tangents" type="checkbox"> Red tangents</label>
+<label><input id="projection" type="checkbox"> Green projection</label>
+<div class="sep"></div>
+<button id="del" title="Delete selection">Delete selected</button>
+<button id="group">Group selected</button>
+<button id="ungroup">Ungroup selected</button>
+<label><input type="checkbox" id="addSelect"> Add selection</label>
+<div class="sep"></div>
+<label>Zoom <button id="zoomOut">−</button><button id="resetView">100%</button><button id="zoomIn">+</button></label>
+<div class="sep"></div>
+<label>Reference <button id="importImage" type="button">Load JPG/PNG</button></label><input id="imageFile" type="file" accept="image/png,image/jpeg" hidden>
+<label><input id="imageVisible" type="checkbox" checked> Show image</label>
+<label>Image size <input id="imageScale" type="range" min="10" max="400" value="100" step="5"><span id="imageScaleOut">100</span>%</label>
+<button id="clearImage">Remove image</button>
+<div class="sep"></div>
+<label>Fill color <input id="fillColor" type="color" value="#e8ad78"></label>
+<label>Close gaps <input id="gapSize" type="range" min="0" max="24" step="1" value="8"><span id="gapOut">8</span> px</label>
+<button id="clearFills">Clear fills</button>
+</div></aside>
+<div id="stage"><svg id="canvas" xmlns="http://www.w3.org/2000/svg"><g id="world"><g id="background"></g><g id="fills"></g><g id="art"></g><g id="controls"></g></g></svg><div id="toast"></div><div id="hint"></div><span id="stats" style="position:absolute;right:10px;top:10px;pointer-events:none"></span></div></div></div>
 <script>
 (()=>{'use strict';
-const NS='http://www.w3.org/2000/svg',svg=document.querySelector('#canvas'),world=document.querySelector('#world'),art=document.querySelector('#art'),controls=document.querySelector('#controls');
+const NS='http://www.w3.org/2000/svg',svg=document.querySelector('#canvas'),world=document.querySelector('#world'),art=document.querySelector('#art'),controls=document.querySelector('#controls'),background=document.querySelector('#background'),fillLayer=document.querySelector('#fills');
 const $=id=>document.getElementById(id);let mode='draw', strokes=[], selected=null, draft=null, gesture=null, pointers=new Map(),nextId=1;
-let selectedIds=new Set(),nextGroup=1,selectionRect=null;let view={x:0,y:0,s:1};let undoStack=[],redoStack=[];
+let selectedIds=new Set(),nextGroup=1,selectionRect=null;let reference=null;let regions=[],fillImages=[],fillsDirty=true;let rasterCache=null,fillNodesDirty=true;let view={x:0,y:0,s:1};let undoStack=[],redoStack=[];
 const cp=p=>({x:p.x,y:p.y}),add=(a,b)=>({x:a.x+b.x,y:a.y+b.y}),sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y}),mul=(p,k)=>({x:p.x*k,y:p.y*k}),dot=(a,b)=>a.x*b.x+a.y*b.y,len=p=>Math.hypot(p.x,p.y),dist=(a,b)=>len(sub(a,b)),norm=p=>{let l=len(p);return l>1e-9?mul(p,1/l):{x:1,y:0}};
 function qpoint(s,t){let u=1-t;return add(add(mul(s.p0,u*u),mul(s.c,2*u*t)),mul(s.p1,t*t))}
 function dpath(segs){return segs.map((s,i)=>`${i?'':'M '+s.p0.x+' '+s.p0.y+' '}Q ${s.c.x} ${s.c.y} ${s.p1.x} ${s.p1.y}`).join(' ')}
@@ -30,9 +79,9 @@ function worldPoint(e){let p=screenPoint(e);return{x:(p.x-view.x)/view.s,y:(p.y-
 function applyView(){world.setAttribute('transform',`translate(${view.x} ${view.y}) scale(${view.s})`);$('stats').textContent=`${strokes.length} strokes · ${strokes.reduce((n,s)=>n+s.segs.length,0)} curves · ${Math.round(view.s*100)}%`}
 function setZoom(s,anchor){let before={x:(anchor.x-view.x)/view.s,y:(anchor.y-view.y)/view.s};view.s=Math.max(.15,Math.min(12,s));view.x=anchor.x-before.x*view.s;view.y=anchor.y-before.y*view.s;applyView();render()}
 function center(){return{x:svg.clientWidth/2,y:svg.clientHeight/2}}
-function snapshot(){return JSON.stringify({strokes,selected,nextId,nextGroup,selectedIds:[...selectedIds]})}
+function snapshot(){return JSON.stringify({strokes,selected,nextId,nextGroup,selectedIds:[...selectedIds],reference,regions})}
 function checkpoint(){undoStack.push(snapshot());if(undoStack.length>80)undoStack.shift();redoStack=[];buttons()}
-function restore(str){let x=JSON.parse(str);strokes=x.strokes;selected=x.selected;selectedIds=new Set(x.selectedIds|| (selected===null?[]:[selected]));nextId=x.nextId;nextGroup=x.nextGroup||1;draft=null;render()}
+function restore(str){let x=JSON.parse(str);strokes=x.strokes;selected=x.selected;selectedIds=new Set(x.selectedIds|| (selected===null?[]:[selected]));nextId=x.nextId;nextGroup=x.nextGroup||1;reference=x.reference||null;regions=x.regions||[];invalidateFills();syncReferenceControls();draft=null;render()}
 function undo(){if(!undoStack.length)return;redoStack.push(snapshot());restore(undoStack.pop());buttons()}
 function redo(){if(!redoStack.length)return;undoStack.push(snapshot());restore(redoStack.pop());buttons()}
 function buttons(){$('undo').disabled=!undoStack.length;$('redo').disabled=!redoStack.length;$('del').disabled=!selectedIds.size;$('group').disabled=selectedIds.size<2;$('ungroup').disabled=![...selectedIds].some(id=>strokeById(id)?.group!=null)}
@@ -117,17 +166,54 @@ function curvatureCost(first,next,tol,scale){
   const nearCusp=Math.min(1,Math.max(0,8/Math.max(arm1,arm2,1)-.25));
   return (tol*.9)*turnDifference+tol*nearCusp;
 }
-function newDraft(p){return {raw:[cp(p)],segs:[],joins:[],start:0,active:null}}
+// Snap only the START of a new stroke to an existing stroke endpoint.
+// This is positional (C0) continuity, intentionally NOT tangent continuity.
+// Screen-pixel threshold stays constant as the user zooms in/out.
+function nearestStrokeEndpoint(p){
+  const limit=Number($('snapDist').value)/view.s;
+  if(limit<=0)return null;
+  let result=null,best=limit;
+  for(const st of strokes){
+    if(!st.segs?.length)continue;
+    for(const endpoint of [st.segs[0].p0,st.segs[st.segs.length-1].p1]){
+      const d=dist(p,endpoint);
+      if(d<=best){best=d;result=cp(endpoint)}
+    }
+  }
+  return result;
+}
+function newDraft(p){return {raw:[cp(p)],segs:[],joins:[],start:0,active:null,cornerNext:false,snappedStart:false}}
+// Detect a genuinely sharp direction change using two travel-distance
+// windows instead of three consecutive mouse samples (which are noisy).
+function cornerIndex(raw,start){
+  const windowSize=14/view.s, threshold=Number($('corner').value)*Math.PI/180;
+  let traveled=0;
+  for(let i=start+2;i<raw.length-2;i++){
+    let a=i,b=i,da=0,db=0;
+    while(a>start && da<windowSize){da+=dist(raw[a],raw[a-1]);a--}
+    while(b<raw.length-1 && db<windowSize){db+=dist(raw[b],raw[b+1]);b++}
+    if(da<windowSize*.8||db<windowSize*.8||i-a<1||b-i<1)continue;
+    const vin=norm(sub(raw[i],raw[a])),vout=norm(sub(raw[b],raw[i]));
+    const angle=Math.acos(Math.max(-1,Math.min(1,dot(vin,vout))));
+    if(angle>=threshold){
+      // Ensure a split is not triggered again at the same corner.
+      let traveledBefore=0;for(let k=start+1;k<=i;k++)traveledBefore+=dist(raw[k],raw[k-1]);
+      if(traveledBefore>=8/view.s)return i;
+    }
+  }
+  return -1;
+}
 // Undo one committed segment while the pointer is still drawing.
 // Discard its samples and the unfinished tail; the next pointer samples resume
 // from the previous junction, without modifying any older segment.
 function backSegment(){
   if(!draft || gesture?.kind!=='draw')return;
   if(draft.segs.length){
-    draft.segs.pop();
+    const removed=draft.segs.pop();
     draft.start=draft.joins.pop()??0;
     draft.raw.length=draft.start+1;
     draft.active=null;
+    draft.cornerNext=!!removed.cornerStart;
   }else if(draft.raw.length>1){
     draft.raw.length=1;
     draft.active=null;
@@ -142,14 +228,31 @@ function updateDraft(p,finish=false){
   if(raw.length<2)return;
   const tol=Number($('tolerance').value)/view.s;
 
+  // A sharp corner has a shared endpoint but deliberately different tangents.
+  // Detect it independently of the ordinary maximum-error criterion.
+  for(let ci=0;ci<3;ci++){
+    const k=cornerIndex(raw,draft.start);
+    if(k<0)break;
+    const prev=draft.segs.at(-1);
+    const incoming=prev && !draft.cornerNext ? norm(sub(prev.p1,prev.c)) : null;
+    const prior=fitTail(raw.slice(draft.start,k+1),incoming);
+    if(!prior || prior.maxErr>tol*1.4)break;
+    prior.seg.cornerStart=!!draft.cornerNext;
+    draft.joins.push(draft.start);
+    draft.segs.push(prior.seg);
+    draft.start=k;
+    draft.cornerNext=true;
+    draft.active=null;
+  }
   // If a fit fails, move the junction back to a previous real stylus sample.
   // The earliest possible split must still have enough points to be stable.
   for(let pass=0;pass<80;pass++){
     const prev=draft.segs.at(-1);
-    const dir=prev?norm(sub(prev.p1,prev.c)):null;
+    const dir=prev&&!draft.cornerNext?norm(sub(prev.p1,prev.c)):null;
     let tail=raw.slice(draft.start);
     const fit=fitTail(tail,dir);
     if(!fit)break;
+    fit.seg.cornerStart=!!draft.cornerNext;
     draft.active=fit.seg;
     if(fit.maxErr<=tol || tail.length<6)break;
     const last=raw.length-1;
@@ -182,14 +285,16 @@ function updateDraft(p,finish=false){
       break;
     }
     draft.joins.push(draft.start);
+    chosen.first.seg.cornerStart=!!draft.cornerNext;
     draft.segs.push(chosen.first.seg); // permanently frozen
     draft.start=chosen.j;
+    draft.cornerNext=false;
     draft.active=null;
   }
   if(finish){
     const prev=draft.segs.at(-1);
-    const final=fitTail(raw.slice(draft.start),prev?norm(sub(prev.p1,prev.c)):null);
-    if(final)draft.segs.push(final.seg);
+    const final=fitTail(raw.slice(draft.start),prev&&!draft.cornerNext?norm(sub(prev.p1,prev.c)):null);
+    if(final){final.seg.cornerStart=!!draft.cornerNext;draft.segs.push(final.seg)}
     draft.active=null;
   }
 }
@@ -208,13 +313,90 @@ function tangentMarkers(segs){
     const vin=sub(a.p1,a.c),vout=sub(b.c,b.p0);
     if(len(vin)>1e-6){const q=sub(joint,mul(norm(vin),px));node('line',{x1:joint.x,y1:joint.y,x2:q.x,y2:q.y,stroke:'#c00000','stroke-width':2/view.s,'stroke-linecap':'round','pointer-events':'none'},controls)}
     if(len(vout)>1e-6){const q=add(joint,mul(norm(vout),px));node('line',{x1:joint.x,y1:joint.y,x2:q.x,y2:q.y,stroke:'#ff3838','stroke-width':2/view.s,'stroke-dasharray':`${5/view.s} ${3/view.s}`,'stroke-linecap':'round','pointer-events':'none'},controls)}
-    node('circle',{cx:joint.x,cy:joint.y,r:2.5/view.s,fill:'#e11','pointer-events':'none'},controls);
+    node('circle',{cx:joint.x,cy:joint.y,r:2.5/view.s,fill:b.cornerStart?'#a02acb':'#e11','pointer-events':'none'},controls);
   }
 }
-function render(){refreshSegmentButton();art.replaceChildren();controls.replaceChildren();for(let st of strokes){node('path',{d:dpath(st.segs),fill:'none',stroke:selectedIds.has(st.id)?'#1e66e5':'#17212e','stroke-width':(selectedIds.has(st.id)?3.2:2.5)/view.s,'stroke-linecap':'round','stroke-linejoin':'round'},art);tangentMarkers(st.segs)}
+function syncReferenceControls(){
+ $('imageVisible').checked=reference?.visible!==false;
+ $('imageScale').value=reference?Math.round(reference.scale*100):100;
+ $('imageScaleOut').textContent=$('imageScale').value;
+ $('imageVisible').disabled=!reference;$('imageScale').disabled=!reference;$('clearImage').disabled=!reference;
+}
+
+// Bitmap region detection is solely for the fill geometry; original strokes remain vectors.
+// Endpoint bridges are temporary and never added to the visible drawing.
+function makeFillRaster(){
+ if(rasterCache)return rasterCache;
+ if(!strokes.length)return null;
+ let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+ for(const st of strokes)for(const seg of st.segs)for(const p of [seg.p0,seg.c,seg.p1]){
+  minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y);
+ }
+ if(!isFinite(minX))return null;
+ const pad=50,x=minX-pad,y=minY-pad,ww=maxX-minX+2*pad,hh=maxY-minY+2*pad;
+ const scale=Math.min(2,2048/ww,2048/hh,Math.sqrt(2700000/(ww*hh)));
+ const w=Math.max(1,Math.ceil(ww*scale)),h=Math.max(1,Math.ceil(hh*scale));
+ let c=document.createElement('canvas');c.width=w;c.height=h;
+ const ctx=c.getContext('2d',{willReadFrequently:true});ctx.setTransform(scale,0,0,scale,-x*scale,-y*scale);
+ ctx.strokeStyle='#000';ctx.lineWidth=Math.max(1.8,2/scale);ctx.lineCap='round';ctx.lineJoin='round';
+ for(const st of strokes){if(!st.segs.length)continue;ctx.beginPath();ctx.moveTo(st.segs[0].p0.x,st.segs[0].p0.y);for(const seg of st.segs)ctx.quadraticCurveTo(seg.c.x,seg.c.y,seg.p1.x,seg.p1.y);ctx.stroke()}
+ // Bridge nearby exposed endpoints across separate strokes, not every hidden spline junction.
+ const gap=Number($('gapSize').value)/view.s;
+ if(gap>0){let ends=[];for(const st of strokes){if(!st.segs.length)continue;ends.push(st.segs[0].p0,st.segs[st.segs.length-1].p1)}
+  ctx.lineWidth=Math.max(2,2/scale);for(let i=0;i<ends.length;i++)for(let j=i+1;j<ends.length;j++){
+   const d=dist(ends[i],ends[j]);if(d>.01&&d<=gap){ctx.beginPath();ctx.moveTo(ends[i].x,ends[i].y);ctx.lineTo(ends[j].x,ends[j].y);ctx.stroke()}
+  }
+ }
+ const pix=ctx.getImageData(0,0,w,h).data,wall=new Uint8Array(w*h);
+ for(let i=0;i<wall.length;i++)wall[i]=pix[4*i+3]>64?1:0;
+ return rasterCache={x,y,w,h,scale,wall};
+}
+function invalidateFills(){rasterCache=null;fillsDirty=true;fillNodesDirty=true}
+function regionFromSeed(r,seed,color){
+ const sx=Math.floor((seed.x-r.x)*r.scale),sy=Math.floor((seed.y-r.y)*r.scale),w=r.w,h=r.h;
+ if(sx<0||sy<0||sx>=w||sy>=h)return null;
+ const first=sy*w+sx;if(r.wall[first])return null;
+ const seen=new Uint8Array(w*h),queue=new Int32Array(w*h);let head=0,tail=1;queue[0]=first;seen[first]=1;
+ let escapes=false,minX=sx,maxX=sx,minY=sy,maxY=sy;
+ while(head<tail){const i=queue[head++],yy=(i/w)|0,xx=i-yy*w;
+  if(xx===0||yy===0||xx===w-1||yy===h-1)escapes=true;
+  if(xx<minX)minX=xx;if(xx>maxX)maxX=xx;if(yy<minY)minY=yy;if(yy>maxY)maxY=yy;
+  const choices=[xx>0?i-1:-1,xx<w-1?i+1:-1,yy>0?i-w:-1,yy<h-1?i+w:-1];
+  for(const j of choices)if(j>=0&&!seen[j]&&!r.wall[j]){seen[j]=1;queue[tail++]=j}
+ }
+ if(escapes||tail<4)return null;
+ // Allocate only the region's bounding rectangle, not an enormous
+ // full-canvas RGBA bitmap for every fill.
+ const cw=maxX-minX+1,ch=maxY-minY+1;
+ const canvas=document.createElement('canvas');canvas.width=cw;canvas.height=ch;
+ const ctx=canvas.getContext('2d'),pixels=ctx.createImageData(cw,ch);
+ const rr=parseInt(color.slice(1,3),16),gg=parseInt(color.slice(3,5),16),bb=parseInt(color.slice(5,7),16);
+ for(let k=0;k<tail;k++){const j=queue[k],xx=j%w,yy=(j/w)|0,i=((yy-minY)*cw+(xx-minX))*4;pixels.data[i]=rr;pixels.data[i+1]=gg;pixels.data[i+2]=bb;pixels.data[i+3]=255}
+ ctx.putImageData(pixels,0,0);
+ return {x:r.x+minX/r.scale,y:r.y+minY/r.scale,w:cw/r.scale,h:ch/r.scale,data:canvas.toDataURL('image/png')};
+}
+function buildRegions(){fillImages=[];if(regions.length){const raster=makeFillRaster();if(raster)for(const region of regions){const image=regionFromSeed(raster,region,region.color);if(image)fillImages.push(image)}}fillsDirty=false;fillNodesDirty=true}
+function renderRegions(){if(fillsDirty && !gesture)buildRegions();if(!fillNodesDirty)return;fillLayer.replaceChildren();for(const f of fillImages){const el=node('image',{x:f.x,y:f.y,width:f.w,height:f.h,'pointer-events':'none'},fillLayer);el.setAttribute('href',f.data)}fillNodesDirty=false}
+function fillAt(p){const raster=makeFillRaster();if(!raster){alert('Draw some boundaries first.');return}
+ const newColor=$('fillColor').value;
+ const image=regionFromSeed(raster,p,newColor);
+ if(!image){$('hint').textContent='No enclosed region here. Close the gap between endpoints, increase Close gaps, or tap farther from a boundary.';return}
+ checkpoint();regions.push({x:p.x,y:p.y,color:newColor});fillsDirty=true;render();
+}
+function renderReference(){
+ background.replaceChildren();
+ if(reference&&reference.visible!==false){
+  const image=node('image',{x:reference.x,y:reference.y,width:reference.width*reference.scale,height:reference.height*reference.scale,preserveAspectRatio:'none','pointer-events':'none'},background);
+  image.setAttributeNS('http://www.w3.org/1999/xlink','href',reference.data);
+ }
+}
+let renderQueued=false;function scheduleRender(){if(renderQueued)return;renderQueued=true;requestAnimationFrame(()=>{renderQueued=false;render()})}
+function render(){refreshSegmentButton();art.replaceChildren();controls.replaceChildren();renderReference();renderRegions();for(let st of strokes){
+ node('path',{d:dpath(st.segs),fill:'none',stroke:selectedIds.has(st.id)?'#1e66e5':'#17212e','stroke-width':(selectedIds.has(st.id)?3.2:2.5)/view.s,'stroke-linecap':'round','stroke-linejoin':'round'},art);tangentMarkers(st.segs)}
 // Frozen spline segments are drawn as soon as they are committed.
 // The only temporary raw ink is the tail that has not yet been frozen.
 if(draft){
+ if(draft.snappedStart){const q=draft.raw[0];node('circle',{cx:q.x,cy:q.y,r:6/view.s,fill:'#10b98133',stroke:'#059669','stroke-width':2/view.s,'pointer-events':'none'},controls)}
  if(draft.segs.length) {
    node('path',{d:dpath(draft.segs),fill:'none',stroke:'#17212e',
      'stroke-width':2.5/view.s,'stroke-linecap':'round','stroke-linejoin':'round','pointer-events':'none'},art);
@@ -286,7 +468,7 @@ function deformStroke(st,base,grabS,delta,radius){
    const wc=.5*(fromStart+fromEnd);
    return {p0:add(seg.p0,mul(delta,wa)),
            c:add(seg.c,mul(delta,wc)),
-           p1:add(seg.p1,mul(delta,wb))};
+           p1:add(seg.p1,mul(delta,wb)),cornerStart:!!seg.cornerStart};
  });
  // The two quadratic handles of a join must be collinear. Orthogonally
  // correct their directions onto one shared tangent. This is applied to
@@ -294,6 +476,7 @@ function deformStroke(st,base,grabS,delta,radius){
  for(let i=0;i<result.length-1;i++){
    const left=result[i],right=result[i+1],join=left.p1;
    right.p0=cp(join);
+   if(base.segs[i+1].cornerStart)continue; // preserve intentional corners
    const incoming=sub(join,left.c),outgoing=sub(right.c,join);
    let tangent=add(norm(incoming),norm(outgoing));
    if(len(tangent)<.15){
@@ -311,19 +494,57 @@ function deformStroke(st,base,grabS,delta,radius){
  }
  st.segs=result;
 }
+
+// Slope editing works at endpoints/junctions. For a point inside a quadratic,
+// split exactly (de Casteljau) so the new slope pivot lies on the old line.
+// Each pointer drag starts from an immutable geometry baseline.
+function prepareSlope(st,p){
+  if(!st?.segs?.length)return null;
+  let best={d:Infinity,i:0,t:0};
+  st.segs.forEach((seg,i)=>{for(let k=0;k<=80;k++){
+    const t=k/80,d=dist(qpoint(seg,t),p);
+    if(d<best.d)best={d,i,t};
+  }});
+  let i=best.i,t=best.t;
+  if(t>.04&&t<.96){
+    const s=st.segs[i],a=add(mul(s.p0,1-t),mul(s.c,t)),b=add(mul(s.c,1-t),mul(s.p1,t)),m=add(mul(a,1-t),mul(b,t));
+    st.segs.splice(i,1,{p0:cp(s.p0),c:a,p1:cp(m),cornerStart:!!s.cornerStart},{p0:cp(m),c:b,p1:cp(s.p1),cornerStart:false});
+    i++;
+  }else if(t>=.96)i++;
+  const pivot=i===st.segs.length?cp(st.segs.at(-1).p1):cp(st.segs[i].p0);
+  const base=structuredClone(st.segs);
+  const old=i===0?sub(base[0].c,pivot):sub(pivot,base[i-1].c);
+  const dir=norm(old),angle=Math.atan2(dir.y,dir.x);
+  return {pivot,index:i,base,originalAngle:angle};
+}
+function rotateSlope(st,g,p){
+  if(!st)return;
+  const drag=sub(p,g.origin);
+  if(len(drag)<3/view.s){st.segs=structuredClone(g.base);return}
+  const v=add(mul({x:Math.cos(g.originalAngle),y:Math.sin(g.originalAngle)},55/view.s),drag);
+  const ang=Math.atan2(v.y,v.x);
+  const delta=ang-g.originalAngle;
+  const rotate=v=>({x:v.x*Math.cos(delta)-v.y*Math.sin(delta),y:v.x*Math.sin(delta)+v.y*Math.cos(delta)});
+  st.segs=structuredClone(g.base);
+  const i=g.index;
+  if(i>0){const a=st.segs[i-1];a.c=add(g.pivot,rotate(sub(g.base[i-1].c,g.pivot)))}
+  if(i<st.segs.length){const b=st.segs[i];b.c=add(g.pivot,rotate(sub(g.base[i].c,g.pivot)))}
+}
 function groupMembers(id){const st=strokeById(id);return st?.group==null?[id]:strokes.filter(s=>s.group===st.group).map(s=>s.id)}
 function selectHit(id,additive){const members=groupMembers(id);if(!additive)selectedIds.clear();if(additive&&members.every(x=>selectedIds.has(x)))members.forEach(x=>selectedIds.delete(x));else members.forEach(x=>selectedIds.add(x));selected=selectedIds.size?[...selectedIds][0]:null}
 function bbox(st){let xs=[],ys=[];for(let seg of st.segs){for(let i=0;i<=24;i++){const p=qpoint(seg,i/24);xs.push(p.x);ys.push(p.y)}}return {x0:Math.min(...xs),x1:Math.max(...xs),y0:Math.min(...ys),y1:Math.max(...ys)}}
 function selectBox(a,b,additive){let x0=Math.min(a.x,b.x),x1=Math.max(a.x,b.x),y0=Math.min(a.y,b.y),y1=Math.max(a.y,b.y);if(!additive)selectedIds.clear();for(let st of strokes){let bb=bbox(st);if(bb.x0>=x0&&bb.x1<=x1&&bb.y0>=y0&&bb.y1<=y1)groupMembers(st.id).forEach(id=>selectedIds.add(id))}selected=selectedIds.size?[...selectedIds][0]:null}
 function selectionBounds(ids){let all=ids.map(id=>strokeById(id)).filter(Boolean).map(bbox);return {x0:Math.min(...all.map(b=>b.x0)),x1:Math.max(...all.map(b=>b.x1)),y0:Math.min(...all.map(b=>b.y0)),y1:Math.max(...all.map(b=>b.y1))}}
-function scaleSelection(bases,anchor,fx,fy){for(let [id,segs] of bases){let st=strokeById(id);if(!st)continue;st.segs=segs.map(seg=>Object.fromEntries(['p0','c','p1'].map(k=>[k,{x:anchor.x+(seg[k].x-anchor.x)*fx,y:anchor.y+(seg[k].y-anchor.y)*fy}])))} }
+function scaleSelection(bases,anchor,fx,fy){for(let [id,segs] of bases){let st=strokeById(id);if(!st)continue;st.segs=segs.map(seg=>({...Object.fromEntries(['p0','c','p1'].map(k=>[k,{x:anchor.x+(seg[k].x-anchor.x)*fx,y:anchor.y+(seg[k].y-anchor.y)*fy}])),cornerStart:!!seg.cornerStart}))} }
 function moveStroke(st,delta){for(let s of st.segs){s.p0=add(s.p0,delta);s.c=add(s.c,delta);s.p1=add(s.p1,delta)}}
-function setMode(next){mode=next;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));$('hint').textContent=({draw:'Draw with finger or Pencil. Completed curves freeze immediately; only the unfinished tail follows your pointer. Green = projected next 150 px. Two fingers zoom/pan.',move:'Drag empty space for a selection box. Shift-click or toggle Add selection to add strokes. Group makes them move together.',edit:'Drag a blue stroke to reshape. A selected group stretches or squashes together. Red markers identify joins.',pan:'One finger pans. Pinch with two fingers to zoom.'})[mode];render()}
+function setMode(next){mode=next;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));$('hint').textContent=({draw:'Start or end near an existing endpoint to snap to it, creating a connected corner without matching tangents. A green ring shows snapped starts. Snap slider sets distance; 0 turns snapping off. Two fingers zoom/pan.',move:'Drag empty space for a selection box. Shift-click or toggle Add selection to add strokes. Group makes them move together.',edit:'Drag a blue stroke to reshape. Influence controls how many nearby curves follow. Purple markers = intentional corners.',slope:'Drag a blue line to rotate its tangent at that point; endpoints work too. Purple junctions retain their corners.',pan:'One finger pans. Pinch with two fingers to zoom.',image:'Drag anywhere to reposition the reference image. Use Image size to scale it independently.',fill:'Tap inside a region to fill it. Small gaps between line endpoints can be bridged by Close gaps. A fill will not flood outside the drawing.'})[mode];render()}
 function start(e){if(e.button!==undefined&&e.button!==0)return;e.preventDefault();svg.setPointerCapture(e.pointerId);let scr=screenPoint(e),p=worldPoint(e);pointers.set(e.pointerId,scr);
 if(pointers.size===2){if(gesture?.kind==='draw') {draft=null;render()}let a=[...pointers.values()];gesture={kind:'pinch',startView:{...view},center:mul(add(a[0],a[1]),.5),distance:dist(a[0],a[1])};return}
 if(pointers.size>2)return;
 if(mode==='pan'){gesture={kind:'pan',last:scr};return}
-if(mode==='draw'){draft=newDraft(p);gesture={kind:'draw'};return}
+if(mode==='image'){gesture=reference?{kind:'image',last:p}:null;return}
+if(mode==='draw'){const snap=nearestStrokeEndpoint(p);draft=newDraft(snap||p);draft.snappedStart=!!snap;gesture={kind:'draw'};render();return}
+if(mode==='fill'){fillAt(p);return}
 let id=hitStroke(p),additive=e.shiftKey||$('addSelect').checked;
 if(mode==='move'){
  if(id!==null){
@@ -332,6 +553,12 @@ if(mode==='move'){
    checkpoint();gesture={kind:'move',last:p,ids:[...selectedIds]};render();return;
  }
  selectionRect={a:p,b:p};gesture={kind:'box',additive};render();return;
+}
+if(mode==='slope'&&id!==null){
+  if(!selectedIds.has(id))selectHit(id,false);
+  let st=strokeById(id);checkpoint();
+  const g=prepareSlope(st,p);
+  gesture=g?{kind:'slope',id,origin:p,...g}:null;render();return;
 }
 if(mode==='edit'&&id!==null){
   if(!selectedIds.has(id))selectHit(id,false);
@@ -342,7 +569,8 @@ if(mode==='edit'&&id!==null){
     gesture={kind:'scale',origin:p,bounds,ids,base};
   }else{
     const st=strokeById(id),hit=closestOnStroke(st,p);
-    const radius=Math.max(35/view.s,Math.min(hit.total*.24,155/view.s));
+    const influence=Number($('influence').value)/100;
+    const radius=Math.max(12/view.s,hit.total*(.015+.58*influence));
     gesture={kind:'deform',id,origin:p,grabS:hit.s,base:{segs:structuredClone(st.segs),lengths:hit.lengths},radius};
   }
   render();return;
@@ -351,7 +579,8 @@ if(!additive){selectedIds.clear();selected=null}gesture=null;render();}
 function move(e){if(!pointers.has(e.pointerId))return;e.preventDefault();let s=screenPoint(e),p=worldPoint(e);pointers.set(e.pointerId,s);if(gesture?.kind==='pinch'&&pointers.size>=2){let a=[...pointers.values()],mid=mul(add(a[0],a[1]),.5),distance=dist(a[0],a[1]);let old=gesture.startView,zoom=Math.max(.15,Math.min(12,old.s*distance/(gesture.distance||1))),w={x:(gesture.center.x-old.x)/old.s,y:(gesture.center.y-old.y)/old.s};view={s:zoom,x:mid.x-zoom*w.x,y:mid.y-zoom*w.y};render();return}
 if(pointers.size!==1||!gesture)return;
 if(gesture.kind==='pan'){view.x+=s.x-gesture.last.x;view.y+=s.y-gesture.last.y;gesture.last=s;render()}
-else if(gesture.kind==='draw'){updateDraft(p);render()}
+else if(gesture.kind==='image'){if(reference){reference.x+=p.x-gesture.last.x;reference.y+=p.y-gesture.last.y;gesture.last=p;render()}}
+else if(gesture.kind==='draw'){updateDraft(p);scheduleRender()}
 else if(gesture.kind==='box'){selectionRect.b=p;render()}
 else if(gesture.kind==='move'){for(let id of gesture.ids){const st=strokeById(id);if(st)moveStroke(st,sub(p,gesture.last))}gesture.last=p;render()}
 else if(gesture.kind==='scale'){
@@ -360,28 +589,67 @@ else if(gesture.kind==='scale'){
  const fx=Math.max(.08,1+dx/w),fy=Math.max(.08,1+dy/h);
  scaleSelection(g.base,{x:b.x0,y:b.y0},fx,fy);render();}
 
+else if(gesture.kind==='slope'){rotateSlope(strokeById(gesture.id),gesture,p);render()}
 else if(gesture.kind==='deform'){deformStroke(strokeById(gesture.id),gesture.base,gesture.grabS,sub(p,gesture.origin),gesture.radius);render()}}
-function end(e){if(!pointers.has(e.pointerId))return;e.preventDefault();pointers.delete(e.pointerId);if(gesture?.kind==='pinch'){if(pointers.size<2)gesture=null;return}if(gesture?.kind==='draw'&&draft?.raw.length>1){updateDraft(worldPoint(e),true);let fitted=draftSegments();if(fitted.length){checkpoint();let st={id:nextId++,segs:fitted};strokes.push(st);selected=null;selectedIds.clear()}}if(gesture?.kind==='box'&&selectionRect){selectBox(selectionRect.a,selectionRect.b,gesture.additive)}selectionRect=null;draft=null;gesture=null;render()}
+function end(e){if(!pointers.has(e.pointerId))return;e.preventDefault();pointers.delete(e.pointerId);if(gesture?.kind==='pinch'){if(pointers.size<2)gesture=null;return}if(gesture?.kind==='draw'&&draft?.raw.length>1){let release=worldPoint(e),snapEnd=nearestStrokeEndpoint(release);if(snapEnd){draft.raw[draft.raw.length-1]=cp(snapEnd);release=snapEnd;}updateDraft(release,true);let fitted=draftSegments();if(snapEnd&&fitted.length){fitted[fitted.length-1].p1=cp(snapEnd)}if(fitted.length){checkpoint();let st={id:nextId++,segs:fitted};strokes.push(st);selected=null;selectedIds.clear()}}if(gesture?.kind==='box'&&selectionRect){selectBox(selectionRect.a,selectionRect.b,gesture.additive)}selectionRect=null;draft=null;gesture=null;invalidateFills();render()}
 svg.addEventListener('pointerdown',start);svg.addEventListener('pointermove',move);svg.addEventListener('pointerup',end);svg.addEventListener('pointercancel',end);
 svg.addEventListener('wheel',e=>{e.preventDefault();setZoom(view.s*Math.exp(-e.deltaY*.0015),screenPoint(e))},{passive:false});
 document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));$('tolerance').oninput=e=>$('tolOut').textContent=e.target.value;
-$('tangents').onchange=render;$('projection').onchange=render;$('undo').onclick=undo;$('redo').onclick=redo;$('del').onclick=()=>{if(!selectedIds.size)return;checkpoint();strokes=strokes.filter(s=>!selectedIds.has(s.id));selected=null;selectedIds.clear();render()};
+$('corner').oninput=e=>$('cornerOut').textContent=e.target.value;
+$('snapDist').oninput=e=>$('snapOut').textContent=e.target.value;
+$('influence').oninput=e=>$('influenceOut').textContent=e.target.value;
+$('tangents').onchange=render;$('projection').onchange=render;
+$('importImage').onclick=()=>$('imageFile').click();
+$('imageFile').onchange=async e=>{
+ const file=e.target.files?.[0];if(!file)return;
+ if(!/^image\/(png|jpeg)$/.test(file.type)){alert('Choose a JPG or PNG image');return}
+ try{
+  const data=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)});
+  const img=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=reject;im.src=data});
+  checkpoint();
+  const w=img.naturalWidth,h=img.naturalHeight;
+  const scale=Math.min(1,Math.min(svg.clientWidth/w,svg.clientHeight/h)*.85)/view.s;
+  reference={data,width:w,height:h,scale,x:(svg.clientWidth/2-view.x)/view.s-w*scale/2,y:(svg.clientHeight/2-view.y)/view.s-h*scale/2,visible:true};
+  syncReferenceControls();render();
+ }catch(err){alert('Could not load image: '+err.message)}e.target.value='';
+};
+$('imageVisible').onchange=e=>{if(reference){reference.visible=e.target.checked;render()}};
+$('imageScale').oninput=e=>{if(!reference)return;let target=Number(e.target.value)/100,old=reference.scale;reference.x+=(reference.width*(old-target))/2;reference.y+=(reference.height*(old-target))/2;reference.scale=target;$('imageScaleOut').textContent=e.target.value;render()};
+$('clearImage').onclick=()=>{if(reference){checkpoint();reference=null;syncReferenceControls();render()}};
+$('gapSize').oninput=()=>{$('gapOut').textContent=$('gapSize').value;invalidateFills();render()};
+$('clearFills').onclick=()=>{if(!regions.length)return;checkpoint();regions=[];invalidateFills();render()};
+$('undo').onclick=undo;$('redo').onclick=redo;$('del').onclick=()=>{if(!selectedIds.size)return;checkpoint();strokes=strokes.filter(s=>!selectedIds.has(s.id));selected=null;selectedIds.clear();invalidateFills();render()};
 $('group').onclick=()=>{if(selectedIds.size<2)return;checkpoint();let g=nextGroup++;for(let id of selectedIds)strokeById(id).group=g;render()};
 $('ungroup').onclick=()=>{if(!selectedIds.size)return;checkpoint();for(let id of selectedIds){let st=strokeById(id);if(st)delete st.group}render()};
 $('zoomIn').onclick=()=>setZoom(view.s*1.35,center());$('zoomOut').onclick=()=>setZoom(view.s/1.35,center());$('resetView').onclick=()=>{view={x:0,y:0,s:1};render()};
+let savedDrawingName='spline-sketch';
+try{savedDrawingName=localStorage.getItem('splineSketchDrawingName')||savedDrawingName}catch(e){}
+$('drawingName').value=savedDrawingName;
+function nameForSave(){
+ let raw=$('drawingName').value.trim().replace(/\.(svg|json)$/i,'').replace(/[\\/:*?"<>|\x00-\x1f]/g,'_').trim();
+ if(!raw)raw='spline-sketch';
+ savedDrawingName=raw;$('drawingName').value=raw;
+ try{localStorage.setItem('splineSketchDrawingName',raw)}catch(e){}
+ return raw;
+}
+$('drawingName').addEventListener('change',nameForSave);
+function toggleOptions(open){$('optionsPanel').classList.toggle('open',open);$('optionsToggle').setAttribute('aria-expanded',String(open));}
+$('optionsToggle').onclick=()=>toggleOptions(!$('optionsPanel').classList.contains('open'));
+$('closeOptions').onclick=()=>toggleOptions(false);
 function download(data,name,type){let url=URL.createObjectURL(new Blob([data],{type})),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-$('export').onclick=()=>{let paths=strokes.map(st=>`<path d="${dpath(st.segs)}" fill="none" stroke="#17212e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`).join('\n');download(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-view.x/view.s} ${-view.y/view.s} ${svg.clientWidth/view.s} ${svg.clientHeight/view.s}">${paths}</svg>`,'spline-sketch.svg','image/svg+xml')};
+$('export').onclick=()=>{if(fillsDirty)buildRegions();let fills=fillImages.map(f=>`<image x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" href="${f.data}"/>`).join('\n');let paths=strokes.map(st=>`<path d="${dpath(st.segs)}" fill="none" stroke="#17212e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`).join('\n');download(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-view.x/view.s} ${-view.y/view.s} ${svg.clientWidth/view.s} ${svg.clientHeight/view.s}">${fills}${paths}</svg>`,nameForSave()+'.svg','image/svg+xml')};
 // Round only the exported data; do not alter in-memory editing precision.
 function compactStrokes(){
   const round=n=>Math.round(n*1000)/1000;
   return strokes.map(st=>({...st,segs:st.segs.map(seg=>({
     p0:{x:round(seg.p0.x),y:round(seg.p0.y)},
     c:{x:round(seg.c.x),y:round(seg.c.y)},
-    p1:{x:round(seg.p1.x),y:round(seg.p1.y)}
+    p1:{x:round(seg.p1.x),y:round(seg.p1.y)},
+    ...(seg.cornerStart?{cornerStart:true}:{})
   }))}));
 }
-$('save').onclick=()=>download(JSON.stringify({format:'spline-sketch-v2',strokes:compactStrokes()},null,2),'spline-sketch.json','application/json');$('load').onclick=()=>$('file').click();$('file').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let obj=JSON.parse(await f.text());if(!Array.isArray(obj.strokes)||!obj.strokes.every(st=>Array.isArray(st.segs)))throw Error('Not a sketch file');checkpoint();strokes=obj.strokes;nextId=1+Math.max(0,...strokes.map(s=>s.id));selected=null;selectedIds.clear();nextGroup=1+Math.max(0,...strokes.map(st=>st.group||0));render()}catch(err){alert('Could not open drawing: '+err.message)}e.target.value=''};
+$('save').onclick=()=>download(JSON.stringify({format:'spline-sketch-v4',strokes:compactStrokes(),reference,regions,drawingName:nameForSave()},null,2),nameForSave()+'.json','application/json');$('load').onclick=()=>$('file').click();$('file').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let obj=JSON.parse(await f.text());if(!Array.isArray(obj.strokes)||!obj.strokes.every(st=>Array.isArray(st.segs)))throw Error('Not a sketch file');checkpoint();$('drawingName').value=(obj.drawingName||f.name.replace(/\.json$/i,''));nameForSave();strokes=obj.strokes;reference=obj.reference||null;regions=obj.regions||[];invalidateFills();syncReferenceControls();nextId=1+Math.max(0,...strokes.map(s=>s.id));selected=null;selectedIds.clear();nextGroup=1+Math.max(0,...strokes.map(st=>st.group||0));render()}catch(err){alert('Could not open drawing: '+err.message)}e.target.value=''};
 $('undoSegment').addEventListener('pointerdown',e=>e.stopPropagation());$('undoSegment').onclick=backSegment;
 window.addEventListener('keydown',e=>{if(e.key==='Escape' && draft && gesture?.kind==='draw'){e.preventDefault();backSegment();return}let mod=e.metaKey||e.ctrlKey;if(mod&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo()}if(e.key==='Delete'||e.key==='Backspace'){$('del').click()}});
-setMode('draw');})();
+syncReferenceControls();setMode('draw');})();
 </script></body></html>
