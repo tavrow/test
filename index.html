@@ -29,6 +29,8 @@
 <button data-mode="move">↔ Move</button>
 <button data-mode="edit">✥ Reshape</button>
 <button data-mode="slope">⤴ Slope</button>
+<button data-mode="vertex">◇ Edit points</button>
+<button id="simplifyBox" title="Drag a box over the section to reduce curves">▱ Simplify</button>
 <button data-mode="pan">✋ Pan</button>
 <button data-mode="image">🖼 Image position</button>
 <button data-mode="fill">▧ Fill region</button>
@@ -52,6 +54,7 @@
 <button id="del" title="Delete selection">Delete selected</button>
 <button id="group">Group selected</button>
 <button id="ungroup">Ungroup selected</button>
+<div class="sep"></div><strong>Edit points — choose an action, then tap the curve</strong><button id="addVertex">Add vertex at tap</button><button id="smoothVertex">Round corner at tap</button><button id="cornerVertex">Make corner at tap</button><button id="removeVertex">Delete junction (merge curves)</button><button id="simplify">Simplify box</button><label>Target curves <select id="simplifyCount"><option value="1">1 curve</option><option value="2" selected>2 curves</option></select></label><label>Preferred error (shown after reduction) <input type="range" id="simplifyTol" min="1" max="30" value="5"><span id="simplifyOut">5</span> px</label>
 <label><input type="checkbox" id="addSelect"> Add selection</label>
 <div class="sep"></div>
 <label>Zoom <button id="zoomOut">−</button><button id="resetView">100%</button><button id="zoomIn">+</button></label>
@@ -69,7 +72,7 @@
 (()=>{'use strict';
 const NS='http://www.w3.org/2000/svg',svg=document.querySelector('#canvas'),world=document.querySelector('#world'),art=document.querySelector('#art'),controls=document.querySelector('#controls'),background=document.querySelector('#background'),fillLayer=document.querySelector('#fills');
 const $=id=>document.getElementById(id);let mode='draw', strokes=[], selected=null, draft=null, gesture=null, pointers=new Map(),nextId=1;
-let selectedIds=new Set(),nextGroup=1,selectionRect=null;let reference=null;let regions=[],fillImages=[],fillsDirty=true;let rasterCache=null,fillNodesDirty=true,selectedRegion=-1,regionColorCheckpointed=false;let view={x:0,y:0,s:1};let undoStack=[],redoStack=[];
+let simplifyBoxMode=false;let vertexChoice=null;let vertexAction=null;let snapPreview=null;let selectedIds=new Set(),nextGroup=1,selectionRect=null;let reference=null;let regions=[],fillImages=[],fillsDirty=true;let rasterCache=null,fillNodesDirty=true,selectedRegion=-1,regionColorCheckpointed=false;let view={x:0,y:0,s:1};let undoStack=[],redoStack=[];
 const cp=p=>({x:p.x,y:p.y}),add=(a,b)=>({x:a.x+b.x,y:a.y+b.y}),sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y}),mul=(p,k)=>({x:p.x*k,y:p.y*k}),dot=(a,b)=>a.x*b.x+a.y*b.y,len=p=>Math.hypot(p.x,p.y),dist=(a,b)=>len(sub(a,b)),norm=p=>{let l=len(p);return l>1e-9?mul(p,1/l):{x:1,y:0}};
 function qpoint(s,t){let u=1-t;return add(add(mul(s.p0,u*u),mul(s.c,2*u*t)),mul(s.p1,t*t))}
 function dpath(segs){return segs.map((s,i)=>`${i?'':'M '+s.p0.x+' '+s.p0.y+' '}Q ${s.c.x} ${s.c.y} ${s.p1.x} ${s.p1.y}`).join(' ')}
@@ -181,6 +184,16 @@ function nearestStrokeEndpoint(p){
     }
   }
   return result;
+}
+function snapDraftEndpoint(p){
+  let candidate=nearestStrokeEndpoint(p);
+  if(draft?.raw.length>5){
+    let traveled=0;
+    for(let i=1;i<draft.raw.length;i++)traveled+=dist(draft.raw[i-1],draft.raw[i]);
+    const first=draft.raw[0],d=dist(first,p),limit=Number($('snapDist').value)/view.s;
+    if(traveled>Math.max(limit*3,30/view.s) && limit>0 && d<=limit && (!candidate||d<=dist(candidate,p)))candidate=cp(first);
+  }
+  return candidate;
 }
 function newDraft(p){return {raw:[cp(p)],segs:[],joins:[],start:0,active:null,cornerNext:false,snappedStart:false}}
 // Detect a genuinely sharp direction change using two travel-distance
@@ -420,6 +433,7 @@ function render(){refreshSegmentButton();art.replaceChildren();controls.replaceC
 // The only temporary raw ink is the tail that has not yet been frozen.
 if(draft){
  if(draft.snappedStart){const q=draft.raw[0];node('circle',{cx:q.x,cy:q.y,r:6/view.s,fill:'#10b98133',stroke:'#059669','stroke-width':2/view.s,'pointer-events':'none'},controls)}
+ if(snapPreview){const q=snapPreview;node('circle',{cx:q.x,cy:q.y,r:8/view.s,fill:'#10b98130',stroke:'#00a96a','stroke-width':2.5/view.s,'pointer-events':'none'},controls)}
  if(draft.segs.length) {
    node('path',{d:dpath(draft.segs),fill:'none',stroke:'#17212e',
      'stroke-width':2.5/view.s,'stroke-linecap':'round','stroke-linejoin':'round','pointer-events':'none'},art);
@@ -449,6 +463,8 @@ if(draft?.active && $('projection').checked){
  node('path',{d:`M ${tip.x} ${tip.y} Q ${control.x} ${control.y} ${prev.x} ${prev.y}`,fill:'none',stroke:'#16b34b','stroke-width':2.5/view.s,'stroke-linecap':'round','pointer-events':'none'},controls);
 }
 if(selectionRect){let a=selectionRect.a,b=selectionRect.b;node('rect',{x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),width:Math.abs(b.x-a.x),height:Math.abs(b.y-a.y),fill:'#1e66e511',stroke:'#1e66e5','stroke-width':1.5/view.s,'stroke-dasharray':`${6/view.s} ${4/view.s}`,'pointer-events':'none'},controls)}
+if(mode==='vertex')for(const st of strokes){for(let i=1;i<st.segs.length;i++){const q=st.segs[i].p0;node('circle',{cx:q.x,cy:q.y,r:5/view.s,fill:st.segs[i].cornerStart?'#a02acb':'#e15b30',stroke:'#fff','stroke-width':1.4/view.s,'pointer-events':'none'},controls)}}
+if(mode==='vertex'&&vertexChoice){const st=strokeById(vertexChoice.id);if(st){const seg=st.segs[vertexChoice.i];const pt=vertexChoice.type==='join'?(seg?.p0||st.segs.at(-1)?.p1):seg&&qpoint(seg,vertexChoice.t);if(pt)node('circle',{cx:pt.x,cy:pt.y,r:6/view.s,fill:'#fff',stroke:'#a02acb','stroke-width':2.5/view.s,'pointer-events':'none'},controls)}}
 if(mode==='fill'&&selectedRegion>=0&&regions[selectedRegion]){const q=regions[selectedRegion];node('circle',{cx:q.x,cy:q.y,r:6/view.s,fill:'none',stroke:'#1e66e5','stroke-width':2/view.s,'pointer-events':'none'},controls)}applyView();buttons()}
 // Find the nearest point along a stroke, including its normalized path distance.
 function closestOnStroke(st,p){
@@ -476,8 +492,11 @@ function deformStroke(st,base,grabS,delta,radius){
  // For a Gaussian, max |w'(s)| = exp(-1/2)/sigma. Keeping
  // |delta| * max|w'| well below 1 avoids reversing the local stroke.
  const sigma=Math.max(radius,1.35*len(delta));
- const weight=s=>Math.exp(-.5*Math.pow((s-grabS)/sigma,2));
- const slope=s=>-(s-grabS)/(sigma*sigma)*weight(s);
+ const totalLength=base.lengths.reduce((a,b)=>a+b,0);
+ const closed=base.segs.length>1 && dist(base.segs[0].p0,base.segs.at(-1).p1)<1e-5;
+ const displacement=s=>{let d=s-grabS;if(closed&&totalLength>1e-8)d-=Math.round(d/totalLength)*totalLength;return d};
+ const weight=s=>Math.exp(-.5*Math.pow(displacement(s)/sigma,2));
+ const slope=s=>-displacement(s)/(sigma*sigma)*weight(s);
  let arclen=0;
  const result=base.segs.map((seg,i)=>{
    const a=arclen,b=a+base.lengths[i];arclen=b;
@@ -514,6 +533,17 @@ function deformStroke(st,base,grabS,delta,radius){
    const ri=Math.min(len(outgoing),Math.max(6,dist(right.p1,join)*1.3));
    left.c=sub(join,mul(tangent,li));
    right.c=add(join,mul(tangent,ri));
+ }
+ if(closed){
+   // Geometry at a cyclic seam is a single vertex, not two independent ends.
+   const first=result[0],last=result.at(-1);
+   last.p1=cp(first.p0);
+   if(!first.cornerStart){
+     const incoming=sub(last.p1,last.c),outgoing=sub(first.c,first.p0);
+     let dir=norm(add(norm(incoming),norm(outgoing)));
+     if(len(dir)<1e-7)dir=norm(add(sub(last.p1,last.p0),sub(first.p1,first.p0)));
+     if(len(dir)>1e-7){last.c=sub(last.p1,mul(dir,len(incoming)));first.c=add(first.p0,mul(dir,len(outgoing)))}
+   }
  }
  st.segs=result;
 }
@@ -560,14 +590,46 @@ function selectBox(a,b,additive){let x0=Math.min(a.x,b.x),x1=Math.max(a.x,b.x),y
 function selectionBounds(ids){let all=ids.map(id=>strokeById(id)).filter(Boolean).map(bbox);return {x0:Math.min(...all.map(b=>b.x0)),x1:Math.max(...all.map(b=>b.x1)),y0:Math.min(...all.map(b=>b.y0)),y1:Math.max(...all.map(b=>b.y1))}}
 function scaleSelection(bases,anchor,fx,fy){for(let [id,segs] of bases){let st=strokeById(id);if(!st)continue;st.segs=segs.map(seg=>({...Object.fromEntries(['p0','c','p1'].map(k=>[k,{x:anchor.x+(seg[k].x-anchor.x)*fx,y:anchor.y+(seg[k].y-anchor.y)*fy}])),cornerStart:!!seg.cornerStart}))} }
 function moveStroke(st,delta){for(let s of st.segs){s.p0=add(s.p0,delta);s.c=add(s.c,delta);s.p1=add(s.p1,delta)}}
-function setMode(next){mode=next;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));$('hint').textContent=({draw:'Start or end near an existing endpoint to snap to it, creating a connected corner without matching tangents. A green ring shows snapped starts. Snap slider sets distance; 0 turns snapping off. Two fingers zoom/pan.',move:'Drag empty space for a selection box. Shift-click or toggle Add selection to add strokes. Group makes them move together.',edit:'Drag a blue stroke to reshape. Influence controls how many nearby curves follow. Purple markers = intentional corners.',slope:'Drag a blue line to rotate its tangent at that point; endpoints work too. Purple junctions retain their corners.',pan:'One finger pans. Pinch with two fingers to zoom.',image:'Drag anywhere to reposition the reference image. Use Image size to scale it independently.',fill:'Tap a filled region to select it, then change Fill color to recolor it instantly. Tap an unfilled enclosed region to create a new fill.'})[mode];render()}
+function setMode(next){simplifyBoxMode=next==='simplify';mode=next;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));$('hint').textContent=({draw:'Start or end near an existing endpoint to snap to it, creating a connected corner without matching tangents. A green ring shows snapped starts. Snap slider sets distance; 0 turns snapping off. Two fingers zoom/pan.',move:'Drag empty space for a selection box. Shift-click or toggle Add selection to add strokes. Group makes them move together.',edit:'Drag anywhere on a blue stroke to reshape it. Drag directly on a corner junction to move the corner and change its angle. Influence controls the surrounding deformation.',slope:'Drag a blue line to rotate its tangent at that point; endpoints work too. Purple junctions retain their corners.',pan:'One finger pans. Pinch with two fingers to zoom.',image:'Drag anywhere to reposition the reference image. Use Image size to scale it independently.',vertex:'In Options choose Add vertex, Round corner, Make corner, or Delete junction, then tap the curve or a junction dot. The chosen operation stays active.',simplify:'Draw a rectangle crossing 3 or more original spline segments; the selected run is replaced by 1 or 2 curves. The resulting error is reported. Undo restores the original.',fill:'Tap a filled region to select it, then change Fill color to recolor it instantly. Tap an unfilled enclosed region to create a new fill.'})[mode];render()}
 function start(e){if(e.button!==undefined&&e.button!==0)return;e.preventDefault();svg.setPointerCapture(e.pointerId);let scr=screenPoint(e),p=worldPoint(e);pointers.set(e.pointerId,scr);
 if(pointers.size===2){if(gesture?.kind==='draw') {draft=null;render()}let a=[...pointers.values()];gesture={kind:'pinch',startView:{...view},center:mul(add(a[0],a[1]),.5),distance:dist(a[0],a[1])};return}
 if(pointers.size>2)return;
 if(mode==='pan'){gesture={kind:'pan',last:scr};return}
 if(mode==='image'){gesture=reference?{kind:'image',last:p}:null;return}
-if(mode==='draw'){const snap=nearestStrokeEndpoint(p);draft=newDraft(snap||p);draft.snappedStart=!!snap;gesture={kind:'draw'};render();return}
+if(mode==='draw'){const snap=nearestStrokeEndpoint(p);draft=newDraft(snap||p);draft.snappedStart=!!snap;snapPreview=null;gesture={kind:'draw'};render();return}
 if(mode==='fill'){fillAt(p);return}
+if(mode==='simplify'){selectionRect={a:p,b:p};gesture={kind:'simplifybox'};render();return}
+if(mode==='vertex'){
+  // Find the actual closest point on every curve, independent of SVG hit testing.
+  // Add selects the curve itself; only junction operations prefer dot proximity.
+  let near=null,nearD=22/view.s;
+  for(const st of strokes)for(let i=0;i<st.segs.length;i++){
+    const seg=st.segs[i];
+    for(let k=0;k<=100;k++){
+      const t=k/100,d=dist(p,qpoint(seg,t));
+      if(d<nearD){nearD=d;near={id:st.id,type:'split',i,t:Math.min(.98,Math.max(.02,t))}}
+    }
+  }
+  let joint=null,jointD=17/view.s;
+  for(const st of strokes)for(let i=1;i<st.segs.length;i++){
+    const d=dist(p,st.segs[i].p0);
+    if(d<jointD){jointD=d;joint={id:st.id,type:'join',i}}
+  }
+  vertexChoice=vertexAction==='add'?near:(vertexAction==='corner'?(joint && (!near || jointD<=10/view.s) ? joint : near):(joint||near));
+  if(vertexChoice){selectedIds=new Set([vertexChoice.id]);selected=vertexChoice.id;
+    if(vertexAction==='add')addVertex();
+    else if(vertexAction==='corner' && vertexChoice.type==='split'){
+      addVertex();
+      if(vertexChoice?.type==='join')changeJunction(false);
+    }
+    else if(vertexAction==='remove' || vertexAction==='smooth' || vertexAction==='corner'){
+      if(vertexChoice.type!=='join')$('hint').textContent='Tap a colored junction dot, not the middle of a segment.';
+      else if(vertexAction==='remove')removeVertex();
+      else changeJunction(vertexAction==='smooth');
+    }else $('hint').textContent=vertexChoice.type==='join'?'Junction selected — choose Smooth or Corner.':'Curve selected — choose + Vertex.';
+  }else $('hint').textContent='Tap closer to a visible curve or its junction.';
+  render();return;
+}
 let id=hitStroke(p),additive=e.shiftKey||$('addSelect').checked;
 if(mode==='move'){
  if(id!==null){
@@ -587,6 +649,15 @@ if(mode==='edit'&&id!==null){
   if(!selectedIds.has(id))selectHit(id,false);
   let ids=[...selectedIds];
   checkpoint();
+  if(ids.length===1 && strokeById(id)?.group==null){
+    const st=strokeById(id); let near=-1, best=17/view.s;
+    for(let i=1;i<st.segs.length;i++){
+      if(!st.segs[i].cornerStart)continue;
+      const d=dist(p,st.segs[i].p0);
+      if(d<best){best=d;near=i}
+    }
+    if(near>=0){gesture={kind:'dragcorner',id,index:near,origin:p,base:structuredClone(st.segs)};render();return}
+  }
   if(ids.length>1 || (strokeById(id)?.group!=null)){
     let bounds=selectionBounds(ids),base=new Map(ids.map(k=>[k,structuredClone(strokeById(k).segs)]));
     gesture={kind:'scale',origin:p,bounds,ids,base};
@@ -603,8 +674,8 @@ function move(e){if(!pointers.has(e.pointerId))return;e.preventDefault();let s=s
 if(pointers.size!==1||!gesture)return;
 if(gesture.kind==='pan'){view.x+=s.x-gesture.last.x;view.y+=s.y-gesture.last.y;gesture.last=s;render()}
 else if(gesture.kind==='image'){if(reference){reference.x+=p.x-gesture.last.x;reference.y+=p.y-gesture.last.y;gesture.last=p;render()}}
-else if(gesture.kind==='draw'){updateDraft(p);scheduleRender()}
-else if(gesture.kind==='box'){selectionRect.b=p;render()}
+else if(gesture.kind==='draw'){snapPreview=snapDraftEndpoint(p);updateDraft(p);scheduleRender()}
+else if(gesture.kind==='box'||gesture.kind==='simplifybox'){selectionRect.b=p;render()}
 else if(gesture.kind==='move'){for(let id of gesture.ids){const st=strokeById(id);if(st)moveStroke(st,sub(p,gesture.last))}gesture.last=p;render()}
 else if(gesture.kind==='scale'){
  const g=gesture,b=g.bounds,w=Math.max(20/view.s,b.x1-b.x0),h=Math.max(20/view.s,b.y1-b.y0);
@@ -612,12 +683,146 @@ else if(gesture.kind==='scale'){
  const fx=Math.max(.08,1+dx/w),fy=Math.max(.08,1+dy/h);
  scaleSelection(g.base,{x:b.x0,y:b.y0},fx,fy);render();}
 
+else if(gesture.kind==='dragcorner'){
+ const st=strokeById(gesture.id),g=gesture,i=g.index,d=sub(p,g.origin);
+ st.segs=structuredClone(g.base);const a=st.segs[i-1],b=st.segs[i];
+ const old=cp(a.p1),next=add(old,d);
+ a.p1=cp(next);b.p0=cp(next);
+ // Keep the adjacent fixed endpoints while letting their local handles follow.
+ a.c=add(a.c,mul(d,.7));b.c=add(b.c,mul(d,.7));
+ b.cornerStart=true;render();}
 else if(gesture.kind==='slope'){rotateSlope(strokeById(gesture.id),gesture,p);render()}
 else if(gesture.kind==='deform'){deformStroke(strokeById(gesture.id),gesture.base,gesture.grabS,sub(p,gesture.origin),gesture.radius);render()}}
-function end(e){if(!pointers.has(e.pointerId))return;e.preventDefault();pointers.delete(e.pointerId);if(gesture?.kind==='pinch'){if(pointers.size<2)gesture=null;return}if(gesture?.kind==='draw'&&draft?.raw.length>1){let release=worldPoint(e),snapEnd=nearestStrokeEndpoint(release);if(snapEnd){draft.raw[draft.raw.length-1]=cp(snapEnd);release=snapEnd;}updateDraft(release,true);let fitted=draftSegments();if(snapEnd&&fitted.length){fitted[fitted.length-1].p1=cp(snapEnd)}if(fitted.length){checkpoint();let st={id:nextId++,segs:fitted};strokes.push(st);selected=null;selectedIds.clear()}}if(gesture?.kind==='box'&&selectionRect){selectBox(selectionRect.a,selectionRect.b,gesture.additive)}selectionRect=null;draft=null;gesture=null;invalidateFills();render()}
+// Joined strokes become one path, with true corners retained as flags.
+function reverseSegments(segs){return segs.slice().reverse().map((s,i)=>({p0:cp(s.p1),c:cp(s.c),p1:cp(s.p0),cornerStart:i===0?false:!!segs[segs.length-i].cornerStart}))}
+function endpointMatch(p,exclude=new Set()){
+ const max=Number($('snapDist').value)/view.s;if(max<=0)return null;
+ let best=null,dmin=max;
+ for(const st of strokes){if(exclude.has(st.id)||!st.segs.length)continue;
+ for(const side of ['start','end']){const q=side==='start'?st.segs[0].p0:st.segs.at(-1).p1;const d=dist(p,q);if(d<=dmin){dmin=d;best={st,side,point:cp(q)}}}}
+ return best;
+}
+function harmonizeJoin(a,b){const va=sub(a.p1,a.c),vb=sub(b.c,b.p0);const la=len(va),lb=len(vb);
+ if(la<1e-7||lb<1e-7)return;const cos=dot(va,vb)/(la*lb);
+ if(cos>Math.cos(25*Math.PI/180)){const v=norm(add(norm(va),norm(vb)));a.c=sub(a.p1,mul(v,la));b.c=add(b.p0,mul(v,lb));b.cornerStart=false}else b.cornerStart=true;
+}
+function concatenate(a,b){if(a.length&&b.length){b[0].p0=cp(a.at(-1).p1);harmonizeJoin(a.at(-1),b[0])}return a.concat(b)}
+function mergeSnappedStroke(segs){let matched=new Set();
+ // Attach at the start first, then at the end; only consume each old path once.
+ let m=endpointMatch(segs[0].p0,matched);
+ if(m){matched.add(m.st.id);let prior=m.side==='end'?structuredClone(m.st.segs):reverseSegments(m.st.segs);segs[0].p0=cp(prior.at(-1).p1);segs=concatenate(prior,segs)}
+ m=endpointMatch(segs.at(-1).p1,matched);
+ if(m){matched.add(m.st.id);let next=m.side==='start'?structuredClone(m.st.segs):reverseSegments(m.st.segs);next[0].p0=cp(segs.at(-1).p1);segs=concatenate(segs,next)}
+ if(matched.size){strokes=strokes.filter(st=>!matched.has(st.id))}
+ return segs;
+}
+// Fit two adjacent quadratics with one quadratic, keeping exact endpoints.
+function mergePair(a,b){const points=[];for(let i=0;i<=24;i++)points.push(qpoint(a,i/24));for(let i=1;i<=24;i++)points.push(qpoint(b,i/24));
+ const dists=[0];for(let i=1;i<points.length;i++)dists[i]=dists[i-1]+dist(points[i-1],points[i]);const total=dists.at(-1)||1;
+ const p0=cp(a.p0),p1=cp(b.p1);let numerator={x:0,y:0},den=0;
+ for(let i=1;i<points.length-1;i++){const t=dists[i]/total,u=1-t,k=2*u*t;const base=add(mul(p0,u*u),mul(p1,t*t));numerator=add(numerator,mul(sub(points[i],base),k));den+=k*k}
+ const c=den>1e-9?mul(numerator,1/den):mul(add(p0,p1),.5);const seg={p0,c,p1,cornerStart:!!a.cornerStart};
+ let maxErr=0;for(let i=0;i<points.length;i++){const t=dists[i]/total;maxErr=Math.max(maxErr,dist(points[i],qpoint(seg,t)))}
+ return {seg,maxErr};
+}
+function chosenStroke(){return vertexChoice&&strokeById(vertexChoice.id)}
+function addVertex(){const st=chosenStroke(),v=vertexChoice;if(!st||!v)return;const i=v.i,t=v.type==='join'?0:v.t;if(v.type==='join'||t<.01||t>.99)return;
+ checkpoint();const a=st.segs[i],x=add(mul(a.p0,1-t),mul(a.c,t)),y=add(mul(a.c,1-t),mul(a.p1,t)),m=add(mul(x,1-t),mul(y,t));
+ st.segs.splice(i,1,{p0:cp(a.p0),c:x,p1:cp(m),cornerStart:!!a.cornerStart},{p0:cp(m),c:y,p1:cp(a.p1),cornerStart:false});vertexChoice={id:st.id,type:'join',i:i+1};invalidateFills();render();
+}
+function changeJunction(smooth){
+ const st=chosenStroke(),v=vertexChoice;
+ if(!st||!v||v.type!=='join'||v.i<=0||v.i>=st.segs.length)return;
+ checkpoint();const a=st.segs[v.i-1],b=st.segs[v.i],p=cp(a.p1);
+ b.p0=cp(p);
+ if(smooth){
+   // Preserve both segments and their endpoints, changing just their local handles.
+   let incoming=norm(sub(p,a.c)),outgoing=norm(sub(b.c,p));
+   let tangent=add(incoming,outgoing);
+   if(len(tangent)<.15)tangent=add(sub(p,a.p0),sub(b.p1,p));
+   if(len(tangent)<1e-8)tangent=sub(p,a.p0);
+   tangent=norm(tangent);
+   const la=dist(p,a.c),lb=dist(p,b.c);
+   a.c=sub(p,mul(tangent,la));b.c=add(p,mul(tangent,lb));
+   b.cornerStart=false;
+ }else{
+   // Create a *visible* corner even when neighboring chords are collinear.
+   // Rotate the incoming and outgoing handles in opposite directions.
+   const incoming=norm(sub(p,a.c)), outgoing=norm(sub(b.c,p));
+   let axis=norm(add(incoming,outgoing));
+   if(len(add(incoming,outgoing))<.15)axis=norm(sub(b.p1,a.p0));
+   const cross=incoming.x*outgoing.y-incoming.y*outgoing.x;
+   const sign=cross<-.025?-1:1,angle=24*Math.PI/180;
+   const rotate=(v,theta)=>({x:v.x*Math.cos(theta)-v.y*Math.sin(theta),y:v.x*Math.sin(theta)+v.y*Math.cos(theta)});
+   const la=Math.max(8/view.s,dist(p,a.c)),lb=Math.max(8/view.s,dist(p,b.c));
+   a.c=sub(p,mul(rotate(axis,-sign*angle),la));
+   b.c=add(p,mul(rotate(axis,sign*angle),lb));
+   b.cornerStart=true;
+ }
+ invalidateFills();render();$('hint').textContent=smooth?'Rounded junction (both segments retained).':'Sharp corner created (both segments retained).';
+}
+function removeVertex(){const st=chosenStroke(),v=vertexChoice;if(!st||!v||v.type!=='join'||v.i<1)return;
+ const i=v.i;if(i>=st.segs.length)return;checkpoint();const combined=mergePair(st.segs[i-1],st.segs[i]);st.segs.splice(i-1,2,combined.seg);vertexChoice=null;invalidateFills();render();
+}
+
+// Simplify only the run of segments that overlaps the drag rectangle.
+// Do not change any segments outside that run.
+function simplifyInBox(a,b){
+ const x0=Math.min(a.x,b.x),x1=Math.max(a.x,b.x),y0=Math.min(a.y,b.y),y1=Math.max(a.y,b.y);
+ if((x1-x0)*view.s<6||(y1-y0)*view.s<6)return;
+ const target=Number($('simplifyCount').value),tol=Number($('simplifyTol').value)/view.s;
+ let changes=[],rejections=0;
+ for(const st of strokes){
+   let hit=[];
+   st.segs.forEach((seg,i)=>{for(let k=0;k<=32;k++){const p=qpoint(seg,k/32);if(p.x>=x0&&p.x<=x1&&p.y>=y0&&p.y<=y1){hit.push(i);break}}});
+   if(hit.length<=target)continue;
+   // Refit a contiguous selection; preserve untouched segments on either side.
+   const first=Math.min(...hit),last=Math.max(...hit);
+   if(last-first+1<=target)continue;
+   let pts=[];for(let i=first;i<=last;i++)for(let j=0;j<=32;j++){if(i>first&&j===0)continue;pts.push(qpoint(st.segs[i],j/32))}
+   const fitOne=arr=>fitTail(arr,null);
+   let best=null;
+   if(target===1){const f=fitOne(pts);if(f)best={segments:[f.seg],error:f.maxErr}}
+   else {
+     // Evaluate split candidates; endpoints fixed, second curve inherits tangent.
+     for(let k=8;k<pts.length-8;k+=2){
+       const f=fitOne(pts.slice(0,k+1));if(!f)continue;
+       const g=fitTail(pts.slice(k),norm(sub(f.seg.p1,f.seg.c)));if(!g)continue;
+       const err=Math.max(f.maxErr,g.maxErr);
+       if(!best||err<best.error)best={segments:[f.seg,g.seg],error:err};
+     }
+   }
+   if(!best){rejections++;continue} // Apply explicit box simplification even if error exceeds preferred tolerance.
+   best.segments[0].cornerStart=!!st.segs[first].cornerStart;
+   if(best.segments.length===2)best.segments[1].cornerStart=false;
+   changes.push({st,first,count:last-first+1,segs:best.segments,error:best.error});
+ }
+ if(!changes.length){$('hint').textContent='No reduction: your box must cross more spline segments than the target count. Try a larger box, or choose 1 curve.';return}
+ checkpoint();for(const c of changes){c.st.segs.splice(c.first,c.count,...c.segs)}
+ invalidateFills();render();$('hint').textContent=`Simplified ${changes.length} section(s) to ${target} curve${target===1?'':'s'}; maximum deviation ${Math.max(...changes.map(c=>c.error))*view.s|0}px. Use Undo if too different.`;
+}
+
+function simplifySelected(){if(!selectedIds.size)return;const threshold=Number($('simplifyTol').value)/view.s;checkpoint();let removed=0;
+ for(const id of selectedIds){const st=strokeById(id);if(!st)continue;for(let iter=0;iter<500;iter++){let best=null;for(let i=1;i<st.segs.length;i++){if(st.segs[i].cornerStart)continue;const fit=mergePair(st.segs[i-1],st.segs[i]);if(fit.maxErr<=threshold&&(!best||fit.maxErr<best.maxErr))best={i,...fit}}if(!best)break;st.segs.splice(best.i-1,2,best.seg);removed++}}
+ vertexChoice=null;invalidateFills();render();$('hint').textContent=`Simplified ${removed} spline junctions (maximum local deviation ${$('simplifyTol').value} px).`;
+}
+function end(e){if(!pointers.has(e.pointerId))return;e.preventDefault();pointers.delete(e.pointerId);if(gesture?.kind==='pinch'){if(pointers.size<2)gesture=null;return}if(gesture?.kind==='draw'&&draft?.raw.length>1){let release=worldPoint(e),snapEnd=snapDraftEndpoint(release);if(snapEnd){draft.raw[draft.raw.length-1]=cp(snapEnd);release=snapEnd;}updateDraft(release,true);let fitted=draftSegments();if(snapEnd&&fitted.length){fitted[fitted.length-1].p1=cp(snapEnd); if(dist(snapEnd,fitted[0].p0)<1e-5)fitted[fitted.length-1].p1=cp(fitted[0].p0)}if(fitted.length){checkpoint();if(dist(fitted[0].p0,fitted.at(-1).p1)>1e-5)fitted=mergeSnappedStroke(fitted);let st={id:nextId++,segs:fitted,closed:dist(fitted[0].p0,fitted.at(-1).p1)<1e-5};if(st.closed)st.segs.at(-1).p1=cp(st.segs[0].p0);strokes.push(st);selected=null;selectedIds.clear()}}if(gesture?.kind==='box'&&selectionRect){selectBox(selectionRect.a,selectionRect.b,gesture.additive)}if(gesture?.kind==='simplifybox'&&selectionRect){simplifyInBox(selectionRect.a,selectionRect.b)}selectionRect=null;draft=null;snapPreview=null;gesture=null;invalidateFills();render()}
 svg.addEventListener('pointerdown',start);svg.addEventListener('pointermove',move);svg.addEventListener('pointerup',end);svg.addEventListener('pointercancel',end);
 svg.addEventListener('wheel',e=>{e.preventDefault();setZoom(view.s*Math.exp(-e.deltaY*.0015),screenPoint(e))},{passive:false});
-document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));$('tolerance').oninput=e=>$('tolOut').textContent=e.target.value;
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{setMode(b.dataset.mode);if(b.dataset.mode==='vertex')$('hint').textContent='Open Options, choose a point operation, then tap the curve or junction.'});$('tolerance').oninput=e=>$('tolOut').textContent=e.target.value;
+function chooseVertexAction(action){
+ vertexAction=action;setMode('vertex');
+ for(const [id,a] of [['addVertex','add'],['smoothVertex','smooth'],['cornerVertex','corner'],['removeVertex','remove']])$(id).classList.toggle('active',action===a);
+ $('hint').textContent=action==='add'?'Tap a curve to insert a new junction without changing its shape.':
+ action==='smooth'?'Tap a colored junction to round the corner without deleting a segment.':
+ action==='corner'?'Tap anywhere on a curve to insert a real sharp corner, or tap an existing junction.':'Tap a junction to delete it and merge adjacent curves.';
+}
+$('addVertex').onclick=()=>chooseVertexAction('add');
+$('removeVertex').onclick=()=>chooseVertexAction('remove');
+$('smoothVertex').onclick=()=>chooseVertexAction('smooth');
+$('cornerVertex').onclick=()=>chooseVertexAction('corner');
+
+$('simplify').onclick=()=>setMode('simplify');$('simplifyBox').onclick=()=>setMode('simplify');$('simplifyTol').oninput=e=>$('simplifyOut').textContent=e.target.value;
 $('corner').oninput=e=>$('cornerOut').textContent=e.target.value;
 $('snapDist').oninput=e=>$('snapOut').textContent=e.target.value;
 $('influence').oninput=e=>$('influenceOut').textContent=e.target.value;
