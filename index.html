@@ -41,15 +41,15 @@
 @media(max-width:700px){#toolbar{width:91px;flex-basis:91px;padding:6px 4px}#toolbar button{font-size:12px;padding:8px 5px}#optionsPanel{left:91px;width:min(220px,calc(100% - 91px))}#hint{max-width:calc(100% - 16px)}}
 </style></head>
 <body><div id="app"><div id="workspace"><nav id="toolbar" aria-label="Drawing tools">
-<button data-mode="draw" class="active">✏️ Draw (D)</button>
-<button data-mode="move">↔ Move (V)</button>
-<button data-mode="edit">✥ Reshape (M)</button>
-<button data-mode="slope">⤴ Slope (S)</button>
-<button data-mode="vertex">◇ Points (E)</button>
-<button id="simplifyBox" title="Drag a box over the section to reduce curves">▱ Simplify (B)</button>
-<button data-mode="pan">✋ Pan (P)</button>
-<button data-mode="image">🖼 Image (I)</button>
-<button data-mode="fill">▧ Fill (F)</button>
+<button data-mode="draw" class="active">Draw (D)</button>
+<button data-mode="move">Move (V)</button>
+<button data-mode="edit">Reshape (M)</button>
+<button data-mode="slope">Slope (S)</button>
+<button data-mode="vertex">Edit Points (E)</button>
+<button data-mode="simplify" id="simplifyBox" title="Drag a box over the section to reduce curves">Simplify (B)</button>
+<button data-mode="pan">Pan (P)</button>
+<button data-mode="image">Image (I)</button>
+<button data-mode="fill">Fill (F)</button>
 <button id="fillPopupToggle" type="button" aria-expanded="false" aria-controls="fillPopup">Fill color ▾</button>
 <div id="fillPopup" role="group" aria-label="Fill appearance" hidden>
   <div class="grad-row"><span class="color-label">Color</span><span id="colorPreview" class="color-preview" aria-hidden="true"></span></div>
@@ -62,11 +62,11 @@
 </div>
 
 <div class="tool-divider"></div>
-<button id="optionsToggle" aria-expanded="false" aria-controls="optionsPanel">⚙ Options (O)</button>
+<button id="optionsToggle" aria-expanded="false" aria-controls="optionsPanel">Options (O)</button>
 <div class="tool-divider"></div>
 <button id="save">Save JSON (J)</button><button id="export">Save SVG (G)</button><button id="load">Open JSON (L)</button>
-<button id="undo" title="Undo">↶ Undo (U)</button><button id="redo" title="Redo">↷ Redo (R)</button>
-<button id="undoSegment" title="Remove last segment of current stroke" disabled>↤ Back (K)</button>
+<button id="undo" title="Undo">Undo (U)</button><button id="redo" title="Redo">Redo (R)</button>
+<button id="undoSegment" title="Remove last segment of current stroke" disabled>Back (K)</button>
 <input type="file" id="file" accept=".json,application/json" hidden>
 </nav><aside id="optionsPanel" aria-label="Drawing options"><div class="options-head"><strong>Options</strong><button id="closeOptions" aria-label="Close options">✕</button></div><div class="options-body">
 <label>Drawing name <input id="drawingName" type="text" placeholder="spline-sketch" autocomplete="off" spellcheck="false"></label>
@@ -355,6 +355,13 @@ function tangentMarkers(segs){
     if(len(vout)>1e-6){const q=add(joint,mul(norm(vout),px));node('line',{x1:joint.x,y1:joint.y,x2:q.x,y2:q.y,stroke:'#ff3838','stroke-width':2/view.s,'stroke-dasharray':`${5/view.s} ${3/view.s}`,'stroke-linecap':'round','pointer-events':'none'},controls)}
     node('circle',{cx:joint.x,cy:joint.y,r:2.5/view.s,fill:b.cornerStart?'#a02acb':'#e11','pointer-events':'none'},controls);
   }
+  if(segs.length>1 && dist(segs[0].p0,segs.at(-1).p1)<1e-5){
+    const a=segs.at(-1),b=segs[0],joint=b.p0;
+    const incoming=sub(a.p1,a.c),outgoing=sub(b.c,b.p0);
+    if(len(incoming)>1e-6){const q=sub(joint,mul(norm(incoming),px));node('line',{x1:joint.x,y1:joint.y,x2:q.x,y2:q.y,stroke:'#c00000','stroke-width':2/view.s,'pointer-events':'none'},controls)}
+    if(len(outgoing)>1e-6){const q=add(joint,mul(norm(outgoing),px));node('line',{x1:joint.x,y1:joint.y,x2:q.x,y2:q.y,stroke:'#ff3838','stroke-width':2/view.s,'stroke-dasharray':`${5/view.s} ${3/view.s}`,'pointer-events':'none'},controls)}
+    node('circle',{cx:joint.x,cy:joint.y,r:3/view.s,fill:'#a02acb','pointer-events':'none'},controls);
+  }
 }
 function syncReferenceControls(){
  $('imageVisible').checked=reference?.visible!==false;
@@ -505,7 +512,7 @@ function closestOnStroke(st,p){
    for(let j=1;j<=48;j++){
      let now=qpoint(seg,j/48),v=sub(now,prev),u=Math.max(0,Math.min(1,dot(sub(p,prev),v)/(dot(v,v)||1)));
      let q=add(prev,mul(v,u)),d=dist(p,q);
-     if(d<best.distance)best={distance:d,s:before+lengths[i]*(j-1+u)/48,point:q};
+     if(d<best.distance)best={distance:d,s:before+lengths[i]*(j-1+u)/48,point:q,segmentIndex:i,t:(j-1+u)/48};
      prev=now;
    }
    before+=lengths[i];
@@ -570,7 +577,9 @@ function deformStroke(st,base,grabS,delta,radius){
    // Geometry at a cyclic seam is a single vertex, not two independent ends.
    const first=result[0],last=result.at(-1);
    last.p1=cp(first.p0);
-   if(!first.cornerStart){
+   const oldIncoming=sub(base.segs.at(-1).p1,base.segs.at(-1).c);
+   const oldOutgoing=sub(base.segs[0].c,base.segs[0].p0);
+   if(dot(norm(oldIncoming),norm(oldOutgoing))>Math.cos(20*Math.PI/180) && !first.cornerStart){
      const incoming=sub(last.p1,last.c),outgoing=sub(first.c,first.p0);
      let dir=norm(add(norm(incoming),norm(outgoing)));
      if(len(dir)<1e-7)dir=norm(add(sub(last.p1,last.p0),sub(first.p1,first.p0)));
@@ -580,6 +589,39 @@ function deformStroke(st,base,grabS,delta,radius){
  st.segs=result;
 }
 
+// At low influence, a stroke must remain bendable even away from segment joins.
+// Keep both endpoints fixed and move the quadratic control point instead.
+// This changes curvature and endpoint slopes while leaving distant geometry alone.
+function bendLocalSegment(st,base,index,t,delta){
+ const segs=structuredClone(base.segs);
+ const i=Math.max(0,Math.min(segs.length-1,index));
+ const seg=segs[i];
+ // Avoid extremely large handle motion when the clicked point is near an end.
+ const effectiveT=Math.max(.16,Math.min(.84,t));
+ const basis=2*effectiveT*(1-effectiveT);
+ const shift=mul(delta,1/basis);
+ seg.c=add(seg.c,shift);
+ // If the junction is smooth, rotate the neighbor's handle to preserve
+ // the shared tangent; intentional corners are not touched.
+ function align(prev,next){
+   const joint=prev.p1;
+   const a=sub(joint,prev.c),b=sub(next.c,joint);
+   if(len(a)<1e-8||len(b)<1e-8)return;
+   // Respect the edited segment: only change its neighbor.
+   if(next===seg)prev.c=sub(joint,mul(norm(b),len(a)));
+   else next.c=add(joint,mul(norm(a),len(b)));
+ }
+ if(i>0 && !seg.cornerStart)align(segs[i-1],seg);
+ if(i<segs.length-1 && !segs[i+1].cornerStart)align(seg,segs[i+1]);
+ // Closure is also a shared junction; don't move the opposite side of a
+ // closed stroke unless its seam itself is the part being edited.
+ const closed=segs.length>1&&dist(base.segs[0].p0,base.segs.at(-1).p1)<1e-5;
+ if(closed && !segs[0].cornerStart){
+   if(i===0)align(segs.at(-1),seg);
+   if(i===segs.length-1)align(seg,segs[0]);
+ }
+ st.segs=segs;
+}
 // Slope editing works at endpoints/junctions. For a point inside a quadratic,
 // split exactly (de Casteljau) so the new slope pivot lies on the old line.
 // Each pointer drag starts from an immutable geometry baseline.
@@ -622,7 +664,7 @@ function selectBox(a,b,additive){let x0=Math.min(a.x,b.x),x1=Math.max(a.x,b.x),y
 function selectionBounds(ids){let all=ids.map(id=>strokeById(id)).filter(Boolean).map(bbox);return {x0:Math.min(...all.map(b=>b.x0)),x1:Math.max(...all.map(b=>b.x1)),y0:Math.min(...all.map(b=>b.y0)),y1:Math.max(...all.map(b=>b.y1))}}
 function scaleSelection(bases,anchor,fx,fy){for(let [id,segs] of bases){let st=strokeById(id);if(!st)continue;st.segs=segs.map(seg=>({...Object.fromEntries(['p0','c','p1'].map(k=>[k,{x:anchor.x+(seg[k].x-anchor.x)*fx,y:anchor.y+(seg[k].y-anchor.y)*fy}])),cornerStart:!!seg.cornerStart}))} }
 function moveStroke(st,delta){for(let s of st.segs){s.p0=add(s.p0,delta);s.c=add(s.c,delta);s.p1=add(s.p1,delta)}}
-function setMode(next){simplifyBoxMode=next==='simplify';mode=next;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));$('hint').textContent=({draw:'Start or end near an existing endpoint to snap to it, creating a connected corner without matching tangents. A green ring shows snapped starts. Snap slider sets distance; 0 turns snapping off. Two fingers zoom/pan.',move:'Drag empty space for a selection box. Shift-click or toggle Add selection to add strokes. Group makes them move together.',edit:'Drag anywhere on a blue stroke to reshape it. Drag directly on a corner junction to move the corner and change its angle. Influence controls the surrounding deformation.',slope:'Drag a blue line to rotate its tangent at that point; endpoints work too. Purple junctions retain their corners.',pan:'One finger pans. Pinch with two fingers to zoom.',image:'Drag anywhere to reposition the reference image. Use Image size to scale it independently.',vertex:'In Options choose Add vertex, Round corner, Make corner, or Delete junction, then tap the curve or a junction dot. The chosen operation stays active.',simplify:'Draw a rectangle crossing 3 or more original spline segments; the selected run is replaced by 1 or 2 curves. The resulting error is reported. Undo restores the original.',fill:'Tap a filled region to select it, then change Fill color to recolor it instantly. Tap an unfilled enclosed region to create a new fill.'})[mode];render()}
+function setMode(next){simplifyBoxMode=next==='simplify';mode=next;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));$('hint').textContent=({draw:'Start or end near an existing endpoint to snap to it, creating a connected corner without matching tangents. A green ring shows snapped starts. Snap slider sets distance; 0 turns snapping off. Two fingers zoom/pan.',move:'Drag empty space for a selection box. Shift-click or toggle Add selection to add strokes. Group makes them move together.',edit:'Drag anywhere on a blue stroke to reshape it. Drag directly on a corner junction to move the corner and change its angle. Influence controls the surrounding deformation.',slope:'Drag a blue line to rotate its tangent at that point; endpoints work too. Purple junctions retain their corners.',pan:'One finger pans. Pinch with two fingers to zoom.',image:'Drag anywhere to reposition the reference image. Use Image size to scale it independently.',vertex:'Edit Points (E): open Options, choose Add vertex, Round corner, Make corner, or Delete junction, then tap the line or junction. This is not the Reshape tool.',simplify:'Simplify (B): draw a rectangle across a line section. It must contain more quadratic segments than the 1- or 2-curve target in Options. Look at the status text for the result.',fill:'Tap a filled region to select it, then change Fill color to recolor it instantly. Tap an unfilled enclosed region to create a new fill.'})[mode];render()}
 function start(e){if(e.button!==undefined&&e.button!==0)return;e.preventDefault();svg.setPointerCapture(e.pointerId);let scr=screenPoint(e),p=worldPoint(e);pointers.set(e.pointerId,scr);
 if(pointers.size===2){if(gesture?.kind==='draw') {draft=null;render()}let a=[...pointers.values()];gesture={kind:'pinch',startView:{...view},center:mul(add(a[0],a[1]),.5),distance:dist(a[0],a[1])};return}
 if(pointers.size>2)return;
@@ -688,6 +730,10 @@ if(mode==='edit'&&id!==null){
       const d=dist(p,st.segs[i].p0);
       if(d<best){best=d;near=i}
     }
+    if(st.closed || dist(st.segs[0].p0,st.segs.at(-1).p1)<1e-5){
+      const seamDist=dist(p,st.segs[0].p0);
+      if(seamDist<best){best=seamDist;near=0}
+    }
     if(near>=0){gesture={kind:'dragcorner',id,index:near,origin:p,base:structuredClone(st.segs)};render();return}
   }
   if(ids.length>1 || (strokeById(id)?.group!=null)){
@@ -697,7 +743,7 @@ if(mode==='edit'&&id!==null){
     const st=strokeById(id),hit=closestOnStroke(st,p);
     const influence=Number($('influence').value)/100;
     const radius=Math.max(12/view.s,hit.total*(.015+.58*influence));
-    gesture={kind:'deform',id,origin:p,grabS:hit.s,base:{segs:structuredClone(st.segs),lengths:hit.lengths},radius};
+    gesture={kind:'deform',id,origin:p,grabS:hit.s,base:{segs:structuredClone(st.segs),lengths:hit.lengths},radius,segmentIndex:hit.segmentIndex,t:hit.t,influence};
   }
   render();return;
 }
@@ -717,14 +763,13 @@ else if(gesture.kind==='scale'){
 
 else if(gesture.kind==='dragcorner'){
  const st=strokeById(gesture.id),g=gesture,i=g.index,d=sub(p,g.origin);
- st.segs=structuredClone(g.base);const a=st.segs[i-1],b=st.segs[i];
+ st.segs=structuredClone(g.base);const a=i===0?st.segs.at(-1):st.segs[i-1],b=st.segs[i];
  const old=cp(a.p1),next=add(old,d);
  a.p1=cp(next);b.p0=cp(next);
- // Keep the adjacent fixed endpoints while letting their local handles follow.
  a.c=add(a.c,mul(d,.7));b.c=add(b.c,mul(d,.7));
  b.cornerStart=true;render();}
 else if(gesture.kind==='slope'){rotateSlope(strokeById(gesture.id),gesture,p);render()}
-else if(gesture.kind==='deform'){deformStroke(strokeById(gesture.id),gesture.base,gesture.grabS,sub(p,gesture.origin),gesture.radius);render()}}
+else if(gesture.kind==='deform'){const g=gesture,st=strokeById(g.id),delta=sub(p,g.origin);if(g.influence<=.15){bendLocalSegment(st,g.base,g.segmentIndex,g.t,delta)}else{deformStroke(st,g.base,g.grabS,delta,g.radius)}render()}}
 // Joined strokes become one path, with true corners retained as flags.
 function reverseSegments(segs){return segs.slice().reverse().map((s,i)=>({p0:cp(s.p1),c:cp(s.c),p1:cp(s.p0),cornerStart:i===0?false:!!segs[segs.length-i].cornerStart}))}
 function endpointMatch(p,exclude=new Set()){
@@ -829,7 +874,7 @@ function simplifyInBox(a,b){
    if(best.segments.length===2)best.segments[1].cornerStart=false;
    changes.push({st,first,count:last-first+1,segs:best.segments,error:best.error});
  }
- if(!changes.length){$('hint').textContent='No reduction: your box must cross more spline segments than the target count. Try a larger box, or choose 1 curve.';return}
+ if(!changes.length){$('hint').textContent='No curves removed: your rectangle crosses too few original segments. Try a larger box, select 1 curve in Options, or check the curve count at upper right.';return}
  checkpoint();for(const c of changes){c.st.segs.splice(c.first,c.count,...c.segs)}
  invalidateFills();render();$('hint').textContent=`Simplified ${changes.length} section(s) to ${target} curve${target===1?'':'s'}; maximum deviation ${Math.max(...changes.map(c=>c.error))*view.s|0}px. Use Undo if too different.`;
 }
@@ -904,6 +949,7 @@ function nameForSave(){
  return raw;
 }
 $('drawingName').addEventListener('change',nameForSave);
+
 function toggleOptions(open){$('optionsPanel').classList.toggle('open',open);$('optionsToggle').setAttribute('aria-expanded',String(open));}
 function toggleFillPopup(force){
  const panel=$('fillPopup');const open=force===undefined?panel.hidden:!!force;
@@ -935,7 +981,7 @@ function compactStrokes(){
     ...(seg.cornerStart?{cornerStart:true}:{})
   }))}));
 }
-$('save').onclick=()=>download(JSON.stringify({format:'spline-sketch-v4',strokes:compactStrokes(),reference,regions,fillOpacity,drawingName:nameForSave()},null,2),nameForSave()+'.json','application/json');$('load').onclick=()=>$('file').click();$('file').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let obj=JSON.parse(await f.text());if(!Array.isArray(obj.strokes)||!obj.strokes.every(st=>Array.isArray(st.segs)))throw Error('Not a sketch file');checkpoint();$('drawingName').value=(obj.drawingName||f.name.replace(/\.json$/i,''));nameForSave();strokes=obj.strokes;reference=obj.reference||null;regions=obj.regions||[];fillOpacity=obj.fillOpacity??1;$('fillOpacity').value=Math.round(fillOpacity*100);$('fillOpacityOut').textContent=Math.round(fillOpacity*100)+'%';selectedRegion=-1;regionColorCheckpointed=false;invalidateFills();syncReferenceControls();nextId=1+Math.max(0,...strokes.map(s=>s.id));selected=null;selectedIds.clear();nextGroup=1+Math.max(0,...strokes.map(st=>st.group||0));render()}catch(err){alert('Could not open drawing: '+err.message)}e.target.value=''};
+$('save').onclick=()=>{download(JSON.stringify({format:'spline-sketch-v4',strokes:compactStrokes(),reference,regions,fillOpacity,drawingName:nameForSave()},null,2),nameForSave()+'.json','application/json')};$('load').onclick=()=>$('file').click();$('file').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let obj=JSON.parse(await f.text());if(!Array.isArray(obj.strokes)||!obj.strokes.every(st=>Array.isArray(st.segs)))throw Error('Not a sketch file');checkpoint();$('drawingName').value=(obj.drawingName||f.name.replace(/\.json$/i,''));nameForSave();strokes=obj.strokes;reference=obj.reference||null;regions=obj.regions||[];fillOpacity=obj.fillOpacity??1;$('fillOpacity').value=Math.round(fillOpacity*100);$('fillOpacityOut').textContent=Math.round(fillOpacity*100)+'%';selectedRegion=-1;regionColorCheckpointed=false;invalidateFills();syncReferenceControls();nextId=1+Math.max(0,...strokes.map(s=>s.id));selected=null;selectedIds.clear();nextGroup=1+Math.max(0,...strokes.map(st=>st.group||0));render()}catch(err){alert('Could not open drawing: '+err.message)}e.target.value=''};
 $('undoSegment').addEventListener('pointerdown',e=>e.stopPropagation());$('undoSegment').onclick=backSegment;
 window.addEventListener('keydown',e=>{
  const target=e.target;
