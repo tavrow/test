@@ -8,12 +8,12 @@
 <style>
 :root{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#17212e;background:#f5f6f8}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}#app{display:flex;flex-direction:column;height:100dvh}header{display:flex;align-items:center;gap:6px;padding:8px 10px;background:#fff;border-bottom:1px solid #dce1e8;flex-wrap:wrap;z-index:2}button{appearance:none;border:1px solid #ccd4df;background:#fff;border-radius:9px;padding:9px 11px;font-size:14px;color:#17212e;min-height:38px}button.active{background:#1e66e5;color:white;border-color:#1e66e5}button:disabled{opacity:.35}.sep{width:1px;height:27px;background:#dce1e8;margin:0 3px}label{display:flex;align-items:center;gap:6px;font-size:12px;color:#526074}input[type=range]{width:80px}#stage{flex:1;position:relative;min-height:0}svg{display:block;width:100%;height:100%;background:#fff;touch-action:none;user-select:none;-webkit-user-select:none}#hint{position:absolute;bottom:10px;left:10px;background:#ffffffdc;color:#465367;border:1px solid #e0e6ef;border-radius:9px;padding:8px;font-size:12px;pointer-events:none;max-width:min(90vw,500px)}#stats{margin-left:auto;color:#617085;font-size:12px}#toast{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:#17212eea;color:#fff;padding:8px 13px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;font-size:13px}#toast.show{opacity:1}@media(max-width:700px){header{padding:6px;gap:4px}button{font-size:13px;padding:8px}#stats{display:none}#hint{font-size:11px}label{font-size:11px}}
 #workspace{display:flex;flex:1;min-height:0;min-width:0;position:relative}
-#toolbar{width:116px;flex:0 0 116px;display:flex;flex-direction:column;gap:5px;background:#f7f9fc;border-right:1px solid #dce1e8;padding:8px 6px;overflow-y:auto;z-index:4}
-#toolbar button{width:100%;text-align:left;padding:10px 8px;white-space:normal}
+#toolbar{width:146px;flex:0 0 146px;display:flex;flex-direction:column;gap:5px;background:#f7f9fc;border-right:1px solid #dce1e8;padding:8px 6px;overflow-y:auto;z-index:4}
+#toolbar button{width:100%;text-align:left;padding:6px 8px;min-height:31px;line-height:1.15;white-space:normal}
 #toolbar .fill-color-control{display:flex;flex-direction:column;align-items:flex-start;gap:5px;padding:4px 7px;font-size:12px;color:#526074}#toolbar .fill-color-control input{width:100%;height:34px;min-height:34px;padding:2px;border:1px solid #ccd4df;border-radius:7px;background:white;cursor:pointer}#toolbar .tool-divider{border-top:1px solid #dce1e8;margin:5px 0}
 #toolbar .fill-style-control{display:flex;flex-direction:column;align-items:stretch;gap:4px;padding:3px 7px;font-size:12px;color:#35435b}
 #toolbar .fill-style-control select{width:100%;min-height:32px;border:1px solid #ccd4df;border-radius:7px;background:white;font-size:12px;padding:3px}
-#optionsPanel{position:absolute;left:116px;top:0;bottom:0;width:min(245px,calc(100% - 116px));padding:9px;background:#fff;z-index:5;border-right:1px solid #dce1e8;box-shadow:6px 0 16px #0002;overflow-y:auto;display:none}
+#optionsPanel{position:absolute;left:146px;top:0;bottom:0;width:min(245px,calc(100% - 146px));padding:9px;background:#fff;z-index:5;border-right:1px solid #dce1e8;box-shadow:6px 0 16px #0002;overflow-y:auto;display:none}
 #optionsPanel.open{display:block}
 #optionsPanel .options-head{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:7px}
 #optionsPanel .options-head button{min-width:42px}
@@ -28,6 +28,14 @@
 #stage{min-width:0}
 #hint{left:8px}
 #fillPopup[hidden]{display:none!important}
+#paletteModes{display:flex;gap:3px;flex-wrap:wrap}
+#paletteModes button{flex:1;min-width:0;padding:4px 2px;min-height:26px;font-size:10px;text-align:center}
+#paletteModes button.selected{background:#dce9ff;border-color:#417be8;color:#173c77}
+#swatchPalette{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px}
+#swatchPalette button{min-width:0;height:25px;min-height:25px;padding:0;border-radius:4px;border:1px solid #9ca3af}
+#swatchPalette button.chosen{outline:2px solid #2563eb;outline-offset:1px}
+#paletteHint{font-size:10px;color:#607086;line-height:1.25}
+
 #fillPopup{display:flex;flex-direction:column;gap:9px;margin:0 2px;padding:10px 7px;background:#fff;border:1px solid #dce1e8;border-radius:9px;box-shadow:0 3px 12px #0001}
 #fillPopup label{display:flex;flex-wrap:wrap;align-items:center;gap:5px;font-size:11px;color:#35435b}
 #fillPopup input[type=color]{display:none}
@@ -38,10 +46,11 @@
 #fillPopup select[hidden]{display:none} #fillPopup select{width:100%;height:31px;border-radius:6px;border:1px solid #ccd4df;background:white}
 #fillPopup input[type=range]{width:100%;flex:1;min-width:70px}
 #toolbar #fillPopupToggle{background:#e8ad78;border-color:#bda58e;min-height:36px;color:#17212e;font-weight:600;text-shadow:0 1px #ffffff80} #fillPopup .grad-row{display:flex;align-items:center;gap:6px} #fillPopup .grad-row input[type=range]{min-width:45px;width:70px} #fillPopup .grad-row input[type=checkbox]{flex:none}
-@media(max-width:700px){#toolbar{width:91px;flex-basis:91px;padding:6px 4px}#toolbar button{font-size:12px;padding:8px 5px}#optionsPanel{left:91px;width:min(220px,calc(100% - 91px))}#hint{max-width:calc(100% - 16px)}}
+@media(max-width:700px){#toolbar{width:126px;flex-basis:126px;padding:5px 4px}#toolbar button{font-size:12px;padding:5px 6px;min-height:29px}#optionsPanel{left:126px;width:min(220px,calc(100% - 126px))}#hint{max-width:calc(100% - 16px)}}
 </style></head>
 <body><div id="app"><div id="workspace"><nav id="toolbar" aria-label="Drawing tools">
 <button data-mode="draw" class="active">Draw (D)</button>
+<button data-mode="replace">Replace (T)</button>
 <button data-mode="move">Move (V)</button>
 <button data-mode="edit">Reshape (M)</button>
 <button data-mode="slope">Slope (S)</button>
@@ -53,6 +62,9 @@
 <button id="fillPopupToggle" type="button" aria-expanded="false" aria-controls="fillPopup">Fill color ▾</button>
 <div id="fillPopup" role="group" aria-label="Fill appearance" hidden>
   <div class="grad-row"><span class="color-label">Color</span><span id="colorPreview" class="color-preview" aria-hidden="true"></span></div>
+  <div id="paletteModes" role="group" aria-label="Color palette"><button type="button" data-palette="all" class="selected">All</button><button type="button" data-palette="skin">Skin</button><button type="button" data-palette="hair">Hair</button></div>
+  <div id="swatchPalette" hidden></div>
+  <div id="paletteHint" hidden>Light → midtones → shadow. Tap a shade to recolor.</div>
   <canvas id="colorSquare" class="color-square" width="220" height="125" aria-label="Choose saturation and brightness"></canvas>
   <canvas id="hueBar" class="hue-bar" width="220" height="19" aria-label="Choose hue"></canvas>
   <input id="fillColor" type="color" value="#e8ad78" tabindex="-1" aria-hidden="true">
@@ -70,7 +82,7 @@
 <input type="file" id="file" accept=".json,application/json" hidden>
 </nav><aside id="optionsPanel" aria-label="Drawing options"><div class="options-head"><strong>Options</strong><button id="closeOptions" aria-label="Close options">✕</button></div><div class="options-body">
 <label>Drawing name <input id="drawingName" type="text" placeholder="spline-sketch" autocomplete="off" spellcheck="false"></label>
-<label>Error <input id="tolerance" type="range" min="2" max="30" value="12" step="1"><span id="tolOut">12</span> px</label>
+<label title="Base tracing tolerance. Slow drawing uses a tighter fit; fast drawing a looser fit.">Error <input id="tolerance" type="range" min="2" max="30" value="12" step="1"><span id="tolOut">12</span> px</label>
 <label>Snap <input id="snapDist" type="range" min="0" max="35" value="14" step="1"><span id="snapOut">14</span> px</label>
 <label>Corner <input id="corner" type="range" min="25" max="100" value="60" step="5"><span id="cornerOut">60</span>°</label>
 <label>Influence <input id="influence" type="range" min="5" max="100" value="35" step="1"><span id="influenceOut">35</span>%</label>
@@ -94,14 +106,74 @@
 <button id="removeFill" title="Delete just the selected filled region">Remove selected fill</button>
 <button id="clearFills">Clear all fills</button>
 </div></aside>
-<div id="stage"><svg id="canvas" xmlns="http://www.w3.org/2000/svg"><g id="world"><g id="background"></g><g id="fills"></g><g id="art"></g><g id="controls"></g></g></svg><div id="toast"></div><div id="hint"></div><span id="stats" style="position:absolute;right:10px;top:10px;pointer-events:none"></span></div></div></div>
+<div id="stage"><svg id="canvas" xmlns="http://www.w3.org/2000/svg"><g id="world"><g id="background"></g><g id="fills"></g><g id="art"></g><g id="controls"></g><g id="fillFeedback"></g></g></svg><div id="toast"></div><div id="hint"></div><span id="stats" style="position:absolute;right:10px;top:10px;pointer-events:none"></span></div></div></div>
 <script>
 (()=>{'use strict';
 const NS='http://www.w3.org/2000/svg',svg=document.querySelector('#canvas'),world=document.querySelector('#world'),art=document.querySelector('#art'),controls=document.querySelector('#controls'),background=document.querySelector('#background'),fillLayer=document.querySelector('#fills');
 const $=id=>document.getElementById(id);let mode='draw', strokes=[], selected=null, draft=null, gesture=null, pointers=new Map(),nextId=1;
-let simplifyBoxMode=false;let vertexChoice=null;let vertexAction=null;let snapPreview=null;let selectedIds=new Set(),nextGroup=1,selectionRect=null;let reference=null;let regions=[],fillImages=[],fillsDirty=true;let rasterCache=null,fillNodesDirty=true,selectedRegion=-1,regionColorCheckpointed=false,fillOpacity=1;let view={x:0,y:0,s:1};let undoStack=[],redoStack=[];
+let replaceDraft=null;let simplifyBoxMode=false;let vertexChoice=null;let vertexAction=null;let snapPreview=null;let selectedIds=new Set(),nextGroup=1,selectionRect=null;let reference=null;let regions=[],fillImages=[],fillsDirty=true;let rasterCache=null,fillNodesDirty=true,selectedRegion=-1,regionColorCheckpointed=false,fillOpacity=1;let view={x:0,y:0,s:1};let undoStack=[],redoStack=[];
 const cp=p=>({x:p.x,y:p.y}),add=(a,b)=>({x:a.x+b.x,y:a.y+b.y}),sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y}),mul=(p,k)=>({x:p.x*k,y:p.y*k}),dot=(a,b)=>a.x*b.x+a.y*b.y,len=p=>Math.hypot(p.x,p.y),dist=(a,b)=>len(sub(a,b)),norm=p=>{let l=len(p);return l>1e-9?mul(p,1/l):{x:1,y:0}};
 function qpoint(s,t){let u=1-t;return add(add(mul(s.p0,u*u),mul(s.c,2*u*t)),mul(s.p1,t*t))}
+// Split quadratic at t without changing its geometry.
+function splitQuadratic(seg,t){
+ const a=add(mul(seg.p0,1-t),mul(seg.c,t)),b=add(mul(seg.c,1-t),mul(seg.p1,t));
+ const mid=add(mul(a,1-t),mul(b,t));
+ return [{p0:cp(seg.p0),c:a,p1:cp(mid),cornerStart:!!seg.cornerStart},
+         {p0:cp(mid),c:b,p1:cp(seg.p1),cornerStart:false}];
+}
+function nearestReplacePoint(p,onlyId=null){
+ let best=null,limit=18/view.s;
+ for(const st of strokes){if(onlyId!==null&&st.id!==onlyId)continue;
+  st.segs.forEach((seg,i)=>{for(let k=0;k<=60;k++){
+   const t=k/60,q=qpoint(seg,t),d=dist(q,p);
+   if(d<limit){limit=d;best={id:st.id,i,t,point:q}}
+  }});
+ }
+ return best;
+}
+// The start/end anchors are exactly on the original stroke. Preserve all
+// untouched quadratics and replace only the interval between the anchors.
+function replaceStrokeArc(st,a,b,replacement){
+ let segs=st.segs;const n=segs.length;
+ const pos=x=>x.i+x.t;
+ let start=a,end=b,insert=replacement.slice();
+ if(!st.closed){
+  if(pos(start)>pos(end)){[start,end]=[end,start];insert=reverseQuadratics(insert)}
+  if(Math.abs(pos(end)-pos(start))<.025)return false;
+  let prefix=segs.slice(0,start.i).map(x=>structuredClone(x));
+  if(start.t>1e-5)prefix.push(splitQuadratic(segs[start.i],start.t)[0]);
+  let suffix=[];
+  if(end.t<1-1e-5)suffix.push(splitQuadratic(segs[end.i],end.t)[1]);
+  suffix.push(...segs.slice(end.i+1).map(x=>structuredClone(x)));
+  insert[0].p0=cp(start.point);insert.at(-1).p1=cp(end.point);
+  insert[0].cornerStart=true;
+  st.segs=[...prefix,...insert,...suffix];
+  return true;
+ }
+ // For a closed loop, replace the shorter *segment-index* arc. The other
+ // arc is retained exactly, and remains closed to the replacement.
+ let forward=(pos(end)-pos(start)+n)%n;
+ if(forward>n/2){[start,end]=[end,start];insert=reverseQuadratics(insert)}
+ let sequence=[];
+ // Build the preserved arc from end to start in increasing cyclic order.
+ let cursor=end.i,t=end.t,guard=0;
+ while(guard++<n+2){
+  if(cursor===start.i && guard>1){
+   if(start.t>1e-5)sequence.push(splitQuadratic(segs[cursor],start.t)[0]);
+   break;
+  }
+  if(t<1-1e-5)sequence.push(t<=1e-5?structuredClone(segs[cursor]):splitQuadratic(segs[cursor],t)[1]);
+  cursor=(cursor+1)%n;t=0;
+  if(cursor===start.i){if(start.t>1e-5)sequence.push(splitQuadratic(segs[cursor],start.t)[0]);break}
+ }
+ // Keep retained arc first, then traverse the new path back to its beginning.
+ insert[0].p0=cp(start.point);insert.at(-1).p1=cp(end.point);insert[0].cornerStart=true;
+ st.segs=[...sequence,...insert];
+ if(!st.segs.length)return false;
+ st.segs[0].p0=cp(end.point);st.segs.at(-1).p1=cp(st.segs[0].p0);
+ st.closed=true;return true;
+}
+function reverseQuadratics(arr){return arr.slice().reverse().map(s=>({p0:cp(s.p1),p1:cp(s.p0),c:cp(s.c),cornerStart:!!s.cornerStart}))}
 function dpath(segs){return segs.map((s,i)=>`${i?'':'M '+s.p0.x+' '+s.p0.y+' '}Q ${s.c.x} ${s.c.y} ${s.p1.x} ${s.p1.y}`).join(' ')}
 function node(tag,attrs,parent){let el=document.createElementNS(NS,tag);for(let k in attrs)el.setAttribute(k,attrs[k]);parent.appendChild(el);return el}
 function screenPoint(e){let r=svg.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
@@ -124,7 +196,7 @@ function fitTail(points, incoming=null) {
   const lengths=[0];let total=0;
   for(let i=1;i<points.length;i++){total+=dist(points[i-1],points[i]);lengths.push(total)}
   if(total<0.05)return null;
-  let ts=lengths.map(x=>x/total), seg, maxErr=0, rms=0;
+  let ts=lengths.map(x=>x/total), seg, maxErr=0, rms=0, cumulativeErr=0;
   // Initial chord-length parameters. Refine with closest-curve projections:
   // this reduces sensitivity to stylus speed and unequal sample spacing.
   for(let iteration=0;iteration<3;iteration++){
@@ -167,11 +239,17 @@ function fitTail(points, incoming=null) {
     }
     ts=next;
   }
+  // Integrate squared geometric error along stylus travel distance, so the
+  // result is independent of event sampling rate (unlike a raw sum of samples).
+  const ds=[];
   for(let i=0;i<points.length;i++){
-    let d=dist(points[i],qpoint(seg,ts[i]));
-    maxErr=Math.max(maxErr,d);rms+=d*d;
+    const d=dist(points[i],qpoint(seg,ts[i]));
+    ds.push(d*d);maxErr=Math.max(maxErr,d);rms+=d*d;
   }
-  return {seg,maxErr,rms:Math.sqrt(rms/points.length),length:total};
+  for(let i=1;i<points.length;i++)
+    cumulativeErr+=(ds[i-1]+ds[i])*.5*(lengths[i]-lengths[i-1]);
+  const integratedRms=Math.sqrt(cumulativeErr/total);
+  return {seg,maxErr,rms:Math.sqrt(rms/points.length),integratedRms,length:total};
 }
 // Signed geometric curvature at a quadratic segment endpoint (1/pixel).
 // Penalizing a curvature jump reduces the flattened/pointed transitions that
@@ -222,7 +300,23 @@ function snapDraftEndpoint(p){
   }
   return candidate;
 }
-function newDraft(p){return {raw:[cp(p)],segs:[],joins:[],start:0,active:null,cornerNext:false,snappedStart:false}}
+function newDraft(p){return {raw:[cp(p)],segs:[],joins:[],start:0,active:null,cornerNext:false,snappedStart:false,speedPxMs:0,lastPointer:p,lastTime:performance.now()}}
+// Mouse / stylus speed is tracked in screen pixels per millisecond.
+// Slow, deliberate tracing gets a tighter fit; quick gestures can be smoother.
+function updateDrawingSpeed(p,eventTime){
+ if(!draft)return;
+ const now=Number.isFinite(eventTime)?eventTime:performance.now();
+ const dt=Math.max(1,now-draft.lastTime);
+ const velocity=Math.min(3,dist(p,draft.lastPointer)*view.s/dt);
+ draft.speedPxMs=draft.speedPxMs*.65+velocity*.35;
+ draft.lastPointer=cp(p);draft.lastTime=now;
+}
+function drawingTolerance(){
+ const base=Number($('tolerance').value)/view.s;
+ // The nominal error slider corresponds to a moderate drawing speed.
+ // At nearly stationary speed use 0.55x; rapid motion allows up to 1.45x.
+ return base*(.55+.9*Math.min(1,(draft?.speedPxMs||0)/1.1));
+}
 // Detect a genuinely sharp direction change using two travel-distance
 // windows instead of three consecutive mouse samples (which are noisy).
 function cornerIndex(raw,start){
@@ -266,7 +360,7 @@ function updateDraft(p,finish=false){
   if(p)simplifyInput(draft.raw,p);
   const raw=draft.raw;
   if(raw.length<2)return;
-  const tol=Number($('tolerance').value)/view.s;
+  const tol=drawingTolerance();
 
   // A sharp corner has a shared endpoint but deliberately different tangents.
   // Detect it independently of the ordinary maximum-error criterion.
@@ -294,7 +388,7 @@ function updateDraft(p,finish=false){
     if(!fit)break;
     fit.seg.cornerStart=!!draft.cornerNext;
     draft.active=fit.seg;
-    if(fit.maxErr<=tol || tail.length<6)break;
+    if((fit.maxErr<=tol && fit.integratedRms<=tol*.5) || tail.length<6)break;
     const last=raw.length-1;
     // Backtrack far enough that the next segment has a meaningful run-up.
     // Prefer the longest valid earlier segment, subject to fitting tolerance.
@@ -302,7 +396,7 @@ function updateDraft(p,finish=false){
     const maxJ=last-3;
     for(let j=maxJ;j>=draft.start+3;j--){
       let first=fitTail(raw.slice(draft.start,j+1),dir);
-      if(!first || first.maxErr>tol)continue;
+      if(!first || first.maxErr>tol || first.integratedRms>tol*.5)continue;
       // Do not force very short curves unless the error is already severe.
 
       // Prefer a junction whose outgoing tangent won't immediately double back.
@@ -313,7 +407,7 @@ function updateDraft(p,finish=false){
       // often choosing a join at which curvature changed abruptly.
       const smoothness=curvatureCost(first.seg,next.seg,tol,first.length);
       const endPenalty=(newLen<12/view.s)?tol*1.3:0;
-      const score=Math.max(first.maxErr,next.maxErr)*.6 + next.rms*.35 +
+      const score=Math.max(first.maxErr,next.maxErr)*.45 + next.integratedRms*.45 +
         first.rms*.15 + smoothness*2 + endPenalty;
       if(!chosen || score<chosen.score-0.15 ||
          (Math.abs(score-chosen.score)<0.15 && j>chosen.j))chosen={j,first,score};
@@ -423,6 +517,64 @@ function regionFromSeed(r,seed,color,style="solid",gradientAngle=90){
  ctx.putImageData(pixels,0,0);
  return {x:r.x+minX/r.scale,y:r.y+minY/r.scale,w:cw/r.scale,h:ch/r.scale,data:canvas.toDataURL('image/png'),mask:makeCompactMask(queue,tail,w,minX,minY,cw,ch),cw,ch};
 }
+// Radial fill for open boundaries. Each ray ends at its first existing line;
+// rays escaping through a gap use the longest valid hit distance instead.
+// The result is a bounded, star-shaped region around the clicked point.
+function radialRegionFromSeed(r,seed,color,style="solid",gradientAngle=90){
+ const sx=(seed.x-r.x)*r.scale,sy=(seed.y-r.y)*r.scale,w=r.w,h=r.h;
+ if(sx<0||sy<0||sx>=w||sy>=h)return null;
+ if(r.wall[(Math.floor(sy)*w+Math.floor(sx))])return null;
+ const N=360,hit=new Float32Array(N);
+ // Prevent an unrelated, very distant contour from setting an enormous radius.
+ const limit=Math.min(Math.hypot(w,h),Math.max(80,750/view.s*r.scale));
+ let count=0,maxHit=0;
+ for(let k=0;k<N;k++){
+  const a=2*Math.PI*k/N,dx=Math.cos(a),dy=Math.sin(a);
+  for(let t=1;t<=limit;t+=1){
+   const x=Math.round(sx+dx*t),y=Math.round(sy+dy*t);
+   if(x<0||y<0||x>=w||y>=h)break;
+   if(r.wall[y*w+x]){hit[k]=Math.max(0,t-1);count++;maxHit=Math.max(maxHit,hit[k]);break}
+  }
+ }
+ // Too few directions hit a line: this is not a useful bounded fill.
+ if(count<N*.35 || maxHit<3)return null;
+ const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+ const ctx=canvas.getContext('2d',{willReadFrequently:true});
+ ctx.beginPath();
+ for(let k=0;k<N;k++){
+  const a=2*Math.PI*k/N,t=hit[k]||maxHit;
+  const x=sx+Math.cos(a)*t,y=sy+Math.sin(a)*t;
+  if(!k)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+ }
+ ctx.closePath();ctx.fillStyle='#000';ctx.fill();
+ const src=ctx.getImageData(0,0,w,h).data;
+ let minX=w,minY=h,maxX=-1,maxY=-1,countPixels=0;
+ // Crop the polygon just like the ordinary fill, avoiding full-canvas image storage.
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+  const i=y*w+x;if(src[i*4+3]<128 || r.wall[i])continue;
+  if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y;
+  countPixels++;
+ }
+ if(countPixels<4)return null;
+ const cw=maxX-minX+1,ch=maxY-minY+1;
+ const out=document.createElement('canvas');out.width=cw;out.height=ch;
+ const octx=out.getContext('2d'),pixels=octx.createImageData(cw,ch),mask=new Uint8Array(cw*ch);
+ const rgb=[1,3,5].map(i=>parseInt(color.slice(i,i+2),16));
+ const a=gradientAngle*Math.PI/180,gx=Math.cos(a),gy=Math.sin(a);
+ const reach=(Math.abs(gx)*(cw-1)+Math.abs(gy)*(ch-1))||1;
+ for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){
+  const srcIndex=y*w+x;
+  if(src[srcIndex*4+3]<128||r.wall[srcIndex])continue;
+  const xx=x-minX,yy=y-minY,index=yy*cw+xx,j=index*4;
+  mask[index]=1;
+  const t=style==='gradient'?Math.max(0,Math.min(1,.5+((xx-(cw-1)/2)*gx+(yy-(ch-1)/2)*gy)/reach)):0;
+  const light=1-.43*t;
+  for(let c=0;c<3;c++)pixels.data[j+c]=Math.round(rgb[c]*light+255*(1-light)*.3);
+  pixels.data[j+3]=255;
+ }
+ octx.putImageData(pixels,0,0);
+ return {x:r.x+minX/r.scale,y:r.y+minY/r.scale,w:cw/r.scale,h:ch/r.scale,data:out.toDataURL('image/png'),mask,cw,ch};
+}
 function makeCompactMask(queue,count,w,minX,minY,cw,ch){
  const mask=new Uint8Array(cw*ch);
  for(let k=0;k<count;k++){const j=queue[k],xx=j%w,yy=(j/w)|0;mask[(yy-minY)*cw+xx-minX]=1}
@@ -447,13 +599,25 @@ function hitRegion(p){
  }
  return -1;
 }
-function buildRegions(){fillImages=[];if(regions.length){const raster=makeFillRaster();if(raster)regions.forEach((region,index)=>{const image=regionFromSeed(raster,region,region.color,region.style||"solid",region.gradientAngle??90);if(image){image.regionIndex=index;fillImages.push(image)}})}fillsDirty=false;fillNodesDirty=true}
+function buildRegions(){fillImages=[];if(regions.length){const raster=makeFillRaster();if(raster)regions.forEach((region,index)=>{const image=region.radial?radialRegionFromSeed(raster,region,region.color,region.style||"solid",region.gradientAngle??90):regionFromSeed(raster,region,region.color,region.style||"solid",region.gradientAngle??90);if(image){image.regionIndex=index;fillImages.push(image)}})}fillsDirty=false;fillNodesDirty=true}
 function renderRegions(){if(fillsDirty && !gesture)buildRegions();if(!fillNodesDirty)return;fillLayer.replaceChildren();for(const f of fillImages){const el=node('image',{x:f.x,y:f.y,width:f.w,height:f.h,'pointer-events':'none',opacity:fillOpacity},fillLayer);el.setAttribute('href',f.data)}fillNodesDirty=false}
+// The failed-fill overlay is separate from the redrawable controls layer.
+// Only used when even a bounded radial region cannot be constructed.
+let fillFeedbackTimer=null;
+function failedFillFeedback(p){
+ const layer=$('fillFeedback');layer.replaceChildren();
+ const size=9/view.s,weight=2.5/view.s;
+ node('path',{d:`M ${p.x-size} ${p.y-size} L ${p.x+size} ${p.y+size} M ${p.x+size} ${p.y-size} L ${p.x-size} ${p.y+size}`,stroke:'#e11d48','stroke-width':weight,'stroke-linecap':'round',fill:'none','pointer-events':'none'},layer);
+ clearTimeout(fillFeedbackTimer);
+ fillFeedbackTimer=setTimeout(()=>layer.replaceChildren(),1800);
+ return false;
+}
 function fillAt(p){const existing=hitRegion(p);if(existing>=0){selectedRegion=existing;regionColorCheckpointed=false;$('fillColor').value=regions[existing].color;setPickerFromHex($('fillColor').value);$('fillStyle').value=regions[existing].style||'solid';$('fillGradient').checked=$('fillStyle').value==='gradient';$('gradientAngle').value=regions[existing].gradientAngle??90;$('gradientAngleOut').textContent=$('gradientAngle').value+'°';updateFillSwatch();$('hint').textContent='Region selected. Change Fill color or Fill type (Solid / Gradient) to update it immediately.';render();return}selectedRegion=-1;const raster=makeFillRaster();if(!raster){alert('Draw some boundaries first.');return}
  const newColor=$('fillColor').value;
- const image=regionFromSeed(raster,p,newColor,$('fillStyle').value,Number($('gradientAngle').value));
- if(!image){$('hint').textContent='No enclosed region here. Close the gap between endpoints, increase Close gaps, or tap farther from a boundary.';return}
- checkpoint();regions.push({x:p.x,y:p.y,color:newColor,style:$('fillStyle').value,gradientAngle:Number($('gradientAngle').value)});selectedRegion=regions.length-1;regionColorCheckpointed=false;fillsDirty=true;render();
+ const closedImage=regionFromSeed(raster,p,newColor,$('fillStyle').value,Number($('gradientAngle').value));
+ const image=closedImage||radialRegionFromSeed(raster,p,newColor,$('fillStyle').value,Number($('gradientAngle').value));
+ if(!image){failedFillFeedback(p);$('hint').textContent='Could not find enough nearby boundaries to create a bounded fill.';return}
+ checkpoint();regions.push({x:p.x,y:p.y,color:newColor,style:$('fillStyle').value,gradientAngle:Number($('gradientAngle').value),radial:!closedImage});selectedRegion=regions.length-1;regionColorCheckpointed=false;fillsDirty=true;render();
 }
 function renderReference(){
  background.replaceChildren();
@@ -481,6 +645,11 @@ if(draft){
    node('path',{d:path,fill:'none',stroke:'#17212e','stroke-width':2.5/view.s,
      'stroke-linecap':'round','stroke-linejoin':'round','pointer-events':'none'},art);
  }
+}
+if(replaceDraft){
+ const points=replaceDraft.raw;
+ if(points.length>1)node('path',{d:'M '+points[0].x+' '+points[0].y+' '+points.slice(1).map(p=>'L '+p.x+' '+p.y).join(' '),stroke:'#0b9a8f','stroke-width':3/view.s,'stroke-dasharray':`${6/view.s} ${3/view.s}`,fill:'none','pointer-events':'none'},controls);
+ if(replaceDraft.target){let q=replaceDraft.target.point;node('circle',{cx:q.x,cy:q.y,r:8/view.s,stroke:'#0b9a8f','stroke-width':2/view.s,fill:'#0b9a8f33','pointer-events':'none'},controls)}
 }
 if(draft?.active && $('projection').checked){
  const s=draft.active,tip=s.p1;
@@ -664,12 +833,13 @@ function selectBox(a,b,additive){let x0=Math.min(a.x,b.x),x1=Math.max(a.x,b.x),y
 function selectionBounds(ids){let all=ids.map(id=>strokeById(id)).filter(Boolean).map(bbox);return {x0:Math.min(...all.map(b=>b.x0)),x1:Math.max(...all.map(b=>b.x1)),y0:Math.min(...all.map(b=>b.y0)),y1:Math.max(...all.map(b=>b.y1))}}
 function scaleSelection(bases,anchor,fx,fy){for(let [id,segs] of bases){let st=strokeById(id);if(!st)continue;st.segs=segs.map(seg=>({...Object.fromEntries(['p0','c','p1'].map(k=>[k,{x:anchor.x+(seg[k].x-anchor.x)*fx,y:anchor.y+(seg[k].y-anchor.y)*fy}])),cornerStart:!!seg.cornerStart}))} }
 function moveStroke(st,delta){for(let s of st.segs){s.p0=add(s.p0,delta);s.c=add(s.c,delta);s.p1=add(s.p1,delta)}}
-function setMode(next){simplifyBoxMode=next==='simplify';mode=next;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));$('hint').textContent=({draw:'Start or end near an existing endpoint to snap to it, creating a connected corner without matching tangents. A green ring shows snapped starts. Snap slider sets distance; 0 turns snapping off. Two fingers zoom/pan.',move:'Drag empty space for a selection box. Shift-click or toggle Add selection to add strokes. Group makes them move together.',edit:'Drag anywhere on a blue stroke to reshape it. Drag directly on a corner junction to move the corner and change its angle. Influence controls the surrounding deformation.',slope:'Drag a blue line to rotate its tangent at that point; endpoints work too. Purple junctions retain their corners.',pan:'One finger pans. Pinch with two fingers to zoom.',image:'Drag anywhere to reposition the reference image. Use Image size to scale it independently.',vertex:'Edit Points (E): open Options, choose Add vertex, Round corner, Make corner, or Delete junction, then tap the line or junction. This is not the Reshape tool.',simplify:'Simplify (B): draw a rectangle across a line section. It must contain more quadratic segments than the 1- or 2-curve target in Options. Look at the status text for the result.',fill:'Tap a filled region to select it, then change Fill color to recolor it instantly. Tap an unfilled enclosed region to create a new fill.'})[mode];render()}
+function setMode(next){simplifyBoxMode=next==='simplify';mode=next;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));$('hint').textContent=({replace:'Start on an existing line, draw a new path, and release back on the SAME line. Only the intervening part is replaced. For closed loops, the shorter arc is replaced.',draw:'Start or end near an existing endpoint to snap to it, creating a connected corner without matching tangents. A green ring shows snapped starts. Snap slider sets distance; 0 turns snapping off. Two fingers zoom/pan.',move:'Drag empty space for a selection box. Shift-click or toggle Add selection to add strokes. Group makes them move together.',edit:'Drag anywhere on a blue stroke to reshape it. Drag directly on a corner junction to move the corner and change its angle. Influence controls the surrounding deformation.',slope:'Drag a blue line to rotate its tangent at that point; endpoints work too. Purple junctions retain their corners.',pan:'One finger pans. Pinch with two fingers to zoom.',image:'Drag anywhere to reposition the reference image. Use Image size to scale it independently.',vertex:'Edit Points (E): open Options, choose Add vertex, Round corner, Make corner, or Delete junction, then tap the line or junction. This is not the Reshape tool.',simplify:'Simplify (B): draw a rectangle across a line section. It must contain more quadratic segments than the 1- or 2-curve target in Options. Look at the status text for the result.',fill:'Tap a filled region to select it, then change Fill color to recolor it instantly. Tap an unfilled enclosed region to create a new fill.'})[mode];render()}
 function start(e){if(e.button!==undefined&&e.button!==0)return;e.preventDefault();svg.setPointerCapture(e.pointerId);let scr=screenPoint(e),p=worldPoint(e);pointers.set(e.pointerId,scr);
-if(pointers.size===2){if(gesture?.kind==='draw') {draft=null;render()}let a=[...pointers.values()];gesture={kind:'pinch',startView:{...view},center:mul(add(a[0],a[1]),.5),distance:dist(a[0],a[1])};return}
+if(pointers.size===2){if(gesture?.kind==='replace')replaceDraft=null;if(gesture?.kind==='draw') {draft=null;render()}let a=[...pointers.values()];gesture={kind:'pinch',startView:{...view},center:mul(add(a[0],a[1]),.5),distance:dist(a[0],a[1])};return}
 if(pointers.size>2)return;
 if(mode==='pan'){gesture={kind:'pan',last:scr};return}
 if(mode==='image'){gesture=reference?{kind:'image',last:p}:null;return}
+if(mode==='replace'){const anchor=nearestReplacePoint(p);if(!anchor){$('hint').textContent='Start directly on an existing line.';gesture=null;return}replaceDraft={start:anchor,raw:[cp(anchor.point)],target:null};gesture={kind:'replace'};render();return}
 if(mode==='draw'){const snap=nearestStrokeEndpoint(p);draft=newDraft(snap||p);draft.snappedStart=!!snap;snapPreview=null;gesture={kind:'draw'};render();return}
 if(mode==='fill'){fillAt(p);return}
 if(mode==='simplify'){selectionRect={a:p,b:p};gesture={kind:'simplifybox'};render();return}
@@ -752,7 +922,8 @@ function move(e){if(!pointers.has(e.pointerId))return;e.preventDefault();let s=s
 if(pointers.size!==1||!gesture)return;
 if(gesture.kind==='pan'){view.x+=s.x-gesture.last.x;view.y+=s.y-gesture.last.y;gesture.last=s;render()}
 else if(gesture.kind==='image'){if(reference){reference.x+=p.x-gesture.last.x;reference.y+=p.y-gesture.last.y;gesture.last=p;render()}}
-else if(gesture.kind==='draw'){snapPreview=snapDraftEndpoint(p);updateDraft(p);scheduleRender()}
+else if(gesture.kind==='replace'){if(dist(replaceDraft.raw.at(-1),p)>0.6/view.s)replaceDraft.raw.push(cp(p));let hit=nearestReplacePoint(p,replaceDraft.start.id);replaceDraft.target=hit && replaceDraft.raw.length>4?hit:null;scheduleRender()}
+else if(gesture.kind==='draw'){snapPreview=snapDraftEndpoint(p);updateDrawingSpeed(p,e.timeStamp);updateDraft(p);scheduleRender()}
 else if(gesture.kind==='box'||gesture.kind==='simplifybox'){selectionRect.b=p;render()}
 else if(gesture.kind==='move'){for(let id of gesture.ids){const st=strokeById(id);if(st)moveStroke(st,sub(p,gesture.last))}gesture.last=p;render()}
 else if(gesture.kind==='scale'){
@@ -883,7 +1054,19 @@ function simplifySelected(){if(!selectedIds.size)return;const threshold=Number($
  for(const id of selectedIds){const st=strokeById(id);if(!st)continue;for(let iter=0;iter<500;iter++){let best=null;for(let i=1;i<st.segs.length;i++){if(st.segs[i].cornerStart)continue;const fit=mergePair(st.segs[i-1],st.segs[i]);if(fit.maxErr<=threshold&&(!best||fit.maxErr<best.maxErr))best={i,...fit}}if(!best)break;st.segs.splice(best.i-1,2,best.seg);removed++}}
  vertexChoice=null;invalidateFills();render();$('hint').textContent=`Simplified ${removed} spline junctions (maximum local deviation ${$('simplifyTol').value} px).`;
 }
-function end(e){if(!pointers.has(e.pointerId))return;e.preventDefault();pointers.delete(e.pointerId);if(gesture?.kind==='pinch'){if(pointers.size<2)gesture=null;return}if(gesture?.kind==='draw'&&draft?.raw.length>1){let release=worldPoint(e),snapEnd=snapDraftEndpoint(release);if(snapEnd){draft.raw[draft.raw.length-1]=cp(snapEnd);release=snapEnd;}updateDraft(release,true);let fitted=draftSegments();if(snapEnd&&fitted.length){fitted[fitted.length-1].p1=cp(snapEnd); if(dist(snapEnd,fitted[0].p0)<1e-5)fitted[fitted.length-1].p1=cp(fitted[0].p0)}if(fitted.length){checkpoint();if(dist(fitted[0].p0,fitted.at(-1).p1)>1e-5)fitted=mergeSnappedStroke(fitted);let st={id:nextId++,segs:fitted,closed:dist(fitted[0].p0,fitted.at(-1).p1)<1e-5};if(st.closed)st.segs.at(-1).p1=cp(st.segs[0].p0);strokes.push(st);selected=null;selectedIds.clear()}}if(gesture?.kind==='box'&&selectionRect){selectBox(selectionRect.a,selectionRect.b,gesture.additive)}if(gesture?.kind==='simplifybox'&&selectionRect){simplifyInBox(selectionRect.a,selectionRect.b)}selectionRect=null;draft=null;snapPreview=null;gesture=null;invalidateFills();render()}
+function end(e){if(!pointers.has(e.pointerId))return;e.preventDefault();pointers.delete(e.pointerId);if(gesture?.kind==='pinch'){if(pointers.size<2)gesture=null;return}if(gesture?.kind==='replace'&&replaceDraft){
+ const r=replaceDraft, hit=nearestReplacePoint(worldPoint(e),r.start.id);
+ if(hit&&r.raw.length>=3&&dist(hit.point,r.start.point)>2/view.s){
+  const st=strokeById(r.start.id),points=[cp(r.start.point),...r.raw.slice(1,-1),cp(hit.point)];
+  const incoming=null;let newSegs=[];
+  // Fit the freehand replacement using the same incremental quadratic fitter.
+  let oldDraft=draft;draft=newDraft(points[0]);for(let k=1;k<points.length;k++)updateDraft(points[k],false);
+  updateDraft(points.at(-1),true);newSegs=draftSegments();draft=oldDraft;
+  if(newSegs.length){checkpoint();if(replaceStrokeArc(st,r.start,hit,newSegs)){invalidateFills();selectedIds=new Set([st.id]);selected=st.id;$('hint').textContent='Section replaced. Undo (U) restores the original.'}}
+ }else $('hint').textContent='Finish on the same line to replace its middle section.';
+ replaceDraft=null;
+ }
+ if(gesture?.kind==='draw'&&draft?.raw.length>1){let release=worldPoint(e),snapEnd=snapDraftEndpoint(release);if(snapEnd){draft.raw[draft.raw.length-1]=cp(snapEnd);release=snapEnd;}updateDraft(release,true);let fitted=draftSegments();if(snapEnd&&fitted.length){fitted[fitted.length-1].p1=cp(snapEnd); if(dist(snapEnd,fitted[0].p0)<1e-5)fitted[fitted.length-1].p1=cp(fitted[0].p0)}if(fitted.length){checkpoint();if(dist(fitted[0].p0,fitted.at(-1).p1)>1e-5)fitted=mergeSnappedStroke(fitted);let st={id:nextId++,segs:fitted,closed:dist(fitted[0].p0,fitted.at(-1).p1)<1e-5};if(st.closed)st.segs.at(-1).p1=cp(st.segs[0].p0);strokes.push(st);selected=null;selectedIds.clear()}}if(gesture?.kind==='box'&&selectionRect){selectBox(selectionRect.a,selectionRect.b,gesture.additive)}if(gesture?.kind==='simplifybox'&&selectionRect){simplifyInBox(selectionRect.a,selectionRect.b)}selectionRect=null;draft=null;snapPreview=null;gesture=null;invalidateFills();render()}
 svg.addEventListener('pointerdown',start);svg.addEventListener('pointermove',move);svg.addEventListener('pointerup',end);svg.addEventListener('pointercancel',end);
 svg.addEventListener('wheel',e=>{e.preventDefault();setZoom(view.s*Math.exp(-e.deltaY*.0015),screenPoint(e))},{passive:false});
 document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{setMode(b.dataset.mode);if(b.dataset.mode==='vertex')$('hint').textContent='Open Options, choose a point operation, then tap the curve or junction.'});$('tolerance').oninput=e=>$('tolOut').textContent=e.target.value;
@@ -965,6 +1148,36 @@ function paintPicker(){const sq=$('colorSquare'),ctx=sq.getContext('2d'),w=sq.wi
 function pickerChange(){const input=$('fillColor');input.value=hsvHex(pickerHue,pickerSat,pickerVal);input.dispatchEvent(new Event('input',{bubbles:true}));paintPicker()}
 function pickerDrag(canvas,callback){let down=false;function update(e){const r=canvas.getBoundingClientRect(),x=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y=Math.max(0,Math.min(1,(e.clientY-r.top)/r.height));callback(x,y);pickerChange()}canvas.addEventListener('pointerdown',e=>{e.preventDefault();down=true;canvas.setPointerCapture(e.pointerId);update(e)});canvas.addEventListener('pointermove',e=>{if(down){e.preventDefault();update(e)}});for(const ev of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(ev,()=>{down=false;$('fillColor').dispatchEvent(new Event('change'))})}
 pickerDrag($('colorSquare'),(x,y)=>{pickerSat=x;pickerVal=1-y});pickerDrag($('hueBar'),(x)=>pickerHue=x*359.999);
+// Artist palettes, ordered by value: lit highlights through deep shadows.
+// Rows represent different undertone/color families, not demographic categories.
+const colorPalettes={
+ skin:[
+ '#fff1dc','#f8d9bf','#ddb391','#b78263','#744a3c',
+ '#ffdfc4','#f1b68c','#cd8b64','#985c42','#543429',
+ '#f5d8ba','#d8a37e','#ae7455','#754b3a','#372620',
+ '#ead1bd','#ba947b','#946953','#614335','#281d1a'],
+ hair:[
+ '#fff1ba','#e8c46e','#c4984e','#866133','#49351f',
+ '#f9d4a7','#d39b57','#a66d34','#704321','#35251a',
+ '#f4b6a0','#c67850','#994933','#612f29','#291d1c',
+ '#ddd2c7','#aaa09a','#747075','#48444a','#1b1b20']
+};
+let paletteMode='all';
+function renderColorPalette(){
+ const sw=$('swatchPalette'),hint=$('paletteHint'),free=paletteMode==='all';
+ sw.hidden=free;hint.hidden=free;$('colorSquare').hidden=!free;$('hueBar').hidden=!free;
+ sw.replaceChildren();
+ if(!free){for(const hex of colorPalettes[paletteMode]){
+  const b=document.createElement('button');b.type='button';b.style.backgroundColor=hex;b.title=hex;b.setAttribute('aria-label',`Choose ${paletteMode} shade ${hex}`);
+  b.classList.toggle('chosen',$('fillColor').value.toLowerCase()===hex);
+  b.onclick=()=>{const inp=$('fillColor');inp.value=hex;inp.dispatchEvent(new Event('input',{bubbles:true}));inp.dispatchEvent(new Event('change',{bubbles:true}));setPickerFromHex(hex);renderColorPalette()};
+  sw.append(b);
+ }}
+ document.querySelectorAll('#paletteModes button').forEach(b=>b.classList.toggle('selected',b.dataset.palette===paletteMode));
+}
+document.querySelectorAll('#paletteModes button').forEach(b=>b.onclick=()=>{paletteMode=b.dataset.palette;renderColorPalette()});
+$('fillColor').addEventListener('input',()=>{if(paletteMode!=='all')renderColorPalette()});
+renderColorPalette();
 setPickerFromHex($('fillColor').value);
 $('fillPopupToggle').onclick=()=>toggleFillPopup();updateFillSwatch();
 $('optionsToggle').onclick=()=>toggleOptions(!$('optionsPanel').classList.contains('open'));
@@ -996,7 +1209,7 @@ window.addEventListener('keydown',e=>{
  if(typing || mod || e.altKey || e.repeat)return;
  const key=e.key.toLowerCase();
  const actions={
-  d:()=>setMode('draw'),v:()=>setMode('move'),m:()=>setMode('edit'),
+  d:()=>setMode('draw'),t:()=>setMode('replace'),v:()=>setMode('move'),m:()=>setMode('edit'),
   f:()=>setMode('fill'),s:()=>setMode('slope'),e:()=>setMode('vertex'),
   b:()=>setMode('simplify'),p:()=>setMode('pan'),i:()=>setMode('image'),
   o:()=>$('optionsToggle').click(),u:undo,r:redo,k:backSegment,
