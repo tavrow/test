@@ -31,16 +31,21 @@
 #paletteModes{display:flex;gap:3px;flex-wrap:wrap}
 #paletteModes button{flex:1;min-width:0;padding:4px 2px;min-height:26px;font-size:10px;text-align:center}
 #paletteModes button.selected{background:#dce9ff;border-color:#417be8;color:#173c77}
-#swatchPalette{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px}
-#swatchPalette button{min-width:0;height:25px;min-height:25px;padding:0;border-radius:4px;border:1px solid #9ca3af}
-#swatchPalette button.chosen{outline:2px solid #2563eb;outline-offset:1px}
 #paletteHint{font-size:10px;color:#607086;line-height:1.25}
+#skinControls,#hairControls{display:flex;flex-direction:column;gap:7px}
+#skinControls[hidden],#hairControls[hidden]{display:none!important}
+#skinControls label,#hairControls label{display:grid;grid-template-columns:70px 1fr 34px;align-items:center;gap:6px;font-size:11px;color:#35435b}
+#skinControls input[type=range],#hairControls input[type=range]{width:100%;margin:0}
+#skinControls .mini,#hairControls .mini{font-size:10px;color:#607086;text-align:right}
+#hairControls select{width:100%;min-height:28px;border:1px solid #ccd4df;border-radius:6px;background:white;font-size:11px;padding:3px 5px}
+#hairControls .family-row{display:grid;grid-template-columns:70px 1fr 34px;align-items:center;gap:6px}
 
 #fillPopup{display:flex;flex-direction:column;gap:9px;margin:0 2px;padding:10px 7px;background:#fff;border:1px solid #dce1e8;border-radius:9px;box-shadow:0 3px 12px #0001}
 #fillPopup label{display:flex;flex-wrap:wrap;align-items:center;gap:5px;font-size:11px;color:#35435b}
 #fillPopup input[type=color]{display:none}
 #fillPopup .color-square{width:100%;height:125px;border:1px solid #ccd4df;border-radius:5px;display:block;touch-action:none;cursor:crosshair}
 #fillPopup .hue-bar{width:100%;height:19px;border-radius:6px;touch-action:none;cursor:pointer;display:block}
+#fillPopup .color-square[hidden],#fillPopup .hue-bar[hidden]{display:none!important}
 #fillPopup .color-label{font-size:11px;color:#35435b;font-weight:600}
 #fillPopup .color-preview{width:27px;height:19px;border:1px solid #ccd4df;border-radius:4px}
 #fillPopup select[hidden]{display:none} #fillPopup select{width:100%;height:31px;border-radius:6px;border:1px solid #ccd4df;background:white}
@@ -51,22 +56,32 @@
 <body><div id="app"><div id="workspace"><nav id="toolbar" aria-label="Drawing tools">
 <button data-mode="draw" class="active">Draw (D)</button>
 <button data-mode="replace">Replace (T)</button>
-<button data-mode="move">Move (V)</button>
+<button data-mode="move">Move (W)</button>
 <button data-mode="edit">Reshape (M)</button>
 <button data-mode="slope">Slope (S)</button>
 <button data-mode="vertex">Edit Points (E)</button>
 <button data-mode="simplify" id="simplifyBox" title="Drag a box over the section to reduce curves">Simplify (B)</button>
+<button data-mode="cut" title="Drag a rectangle to erase portions of curves">Cut (C)</button>
 <button data-mode="pan">Pan (P)</button>
-<button data-mode="image">Image (I)</button>
+<button data-mode="image">Image (H)</button>
 <button data-mode="fill">Fill (F)</button>
 <button id="fillPopupToggle" type="button" aria-expanded="false" aria-controls="fillPopup">Fill color ▾</button>
 <div id="fillPopup" role="group" aria-label="Fill appearance" hidden>
-  <div class="grad-row"><span class="color-label">Color</span><span id="colorPreview" class="color-preview" aria-hidden="true"></span></div>
   <div id="paletteModes" role="group" aria-label="Color palette"><button type="button" data-palette="all" class="selected">All</button><button type="button" data-palette="skin">Skin</button><button type="button" data-palette="hair">Hair</button></div>
-  <div id="swatchPalette" hidden></div>
-  <div id="paletteHint" hidden>Light → midtones → shadow. Tap a shade to recolor.</div>
+  <div id="paletteHint" hidden></div>
   <canvas id="colorSquare" class="color-square" width="220" height="125" aria-label="Choose saturation and brightness"></canvas>
   <canvas id="hueBar" class="hue-bar" width="220" height="19" aria-label="Choose hue"></canvas>
+  <div id="skinControls" hidden>
+    <label><span>Complexion</span><input id="skinComplexion" type="range" min="0" max="100" value="58" step="1"><span id="skinComplexionOut" class="mini"></span></label>
+    <label><span>Undertone</span><input id="skinUndertone" type="range" min="-100" max="100" value="18" step="1"><span id="skinUndertoneOut" class="mini"></span></label>
+    <label><span>Lighting</span><input id="skinLighting" type="range" min="-100" max="100" value="0" step="1"><span id="skinLightingOut" class="mini"></span></label>
+  </div>
+  <div id="hairControls" hidden>
+    <div class="family-row"><span>Family</span><select id="hairFamily"><option value="black">Black</option><option value="brown" selected>Brown</option><option value="blonde">Blonde</option><option value="auburn">Auburn</option><option value="red">Red</option><option value="gray">Gray</option></select><span id="hairFamilyOut" class="mini"></span></div>
+    <label><span>Depth</span><input id="hairDepth" type="range" min="0" max="100" value="45" step="1"><span id="hairDepthOut" class="mini"></span></label>
+    <label><span>Warmth</span><input id="hairWarmth" type="range" min="-100" max="100" value="10" step="1"><span id="hairWarmthOut" class="mini"></span></label>
+    <label><span>Lighting</span><input id="hairLighting" type="range" min="-100" max="100" value="0" step="1"><span id="hairLightingOut" class="mini"></span></label>
+  </div>
   <input id="fillColor" type="color" value="#e8ad78" tabindex="-1" aria-hidden="true">
   <select id="fillStyle" hidden><option value="solid">Solid</option><option value="gradient">Gradient</option></select>
   <div class="grad-row"><label><input id="fillGradient" type="checkbox"> Gradient</label><input id="gradientAngle" type="range" min="0" max="360" value="90" step="1" aria-label="Gradient angle"><span id="gradientAngleOut">90°</span></div>
@@ -99,6 +114,7 @@
 <div class="sep"></div>
 <label>Reference <button id="importImage" type="button">Load JPG/PNG</button></label><input id="imageFile" type="file" accept="image/png,image/jpeg" hidden>
 <label><input id="imageVisible" type="checkbox" checked> Show image</label>
+<label>Image opacity <input id="imageOpacity" type="range" min="0" max="100" value="100" step="1"><span id="imageOpacityOut">100</span>%</label>
 <label>Image size <input id="imageScale" type="range" min="10" max="400" value="100" step="5"><span id="imageScaleOut">100</span>%</label>
 <button id="clearImage">Remove image</button>
 <div class="sep"></div>
@@ -181,6 +197,30 @@ function worldPoint(e){let p=screenPoint(e);return{x:(p.x-view.x)/view.s,y:(p.y-
 function applyView(){world.setAttribute('transform',`translate(${view.x} ${view.y}) scale(${view.s})`);$('stats').textContent=`${strokes.length} strokes · ${strokes.reduce((n,s)=>n+s.segs.length,0)} curves · ${Math.round(view.s*100)}%`}
 function setZoom(s,anchor){let before={x:(anchor.x-view.x)/view.s,y:(anchor.y-view.y)/view.s};view.s=Math.max(.15,Math.min(12,s));view.x=anchor.x-before.x*view.s;view.y=anchor.y-before.y*view.s;applyView();render()}
 function center(){return{x:svg.clientWidth/2,y:svg.clientHeight/2}}
+function viewEntireDrawing(){
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  function include(p){if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y))return;minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y)}
+  for(const st of strokes)for(const seg of (st.segs||[])){
+    include(seg.p0);include(seg.p1);
+    // Quadratic extrema give a tighter view than including control points.
+    for(const axis of ['x','y']){
+      const a=seg.p0[axis],b=seg.c[axis],c=seg.p1[axis],denom=a-2*b+c;
+      if(Math.abs(denom)>1e-10){const t=(a-b)/denom;if(t>0&&t<1)include(qpoint(seg,t))}
+    }
+  }
+  if(!Number.isFinite(minX)){
+    if(reference){include({x:reference.x,y:reference.y});include({x:reference.x+reference.width*reference.scale,y:reference.y+reference.height*reference.scale})}
+    else return;
+  }
+  const w=Math.max(1,maxX-minX),h=Math.max(1,maxY-minY);
+  const margin=0.08;
+  const zoom=Math.max(.15,Math.min(12,Math.min(svg.clientWidth*(1-2*margin)/w,svg.clientHeight*(1-2*margin)/h)));
+  view.s=zoom;
+  view.x=svg.clientWidth/2-(minX+maxX)*zoom/2;
+  view.y=svg.clientHeight/2-(minY+maxY)*zoom/2;
+  render();
+}
+
 function snapshot(){return JSON.stringify({strokes,selected,nextId,nextGroup,selectedIds:[...selectedIds],reference,regions,fillOpacity})}
 function checkpoint(){undoStack.push(snapshot());if(undoStack.length>80)undoStack.shift();redoStack=[];buttons()}
 function restore(str){let x=JSON.parse(str);strokes=x.strokes;selected=x.selected;selectedIds=new Set(x.selectedIds|| (selected===null?[]:[selected]));nextId=x.nextId;nextGroup=x.nextGroup||1;reference=x.reference||null;regions=x.regions||[];fillOpacity=x.fillOpacity??1;$('fillOpacity').value=Math.round(fillOpacity*100);$('fillOpacityOut').textContent=Math.round(fillOpacity*100)+'%';selectedRegion=-1;regionColorCheckpointed=false;invalidateFills();syncReferenceControls();draft=null;render()}
@@ -461,7 +501,9 @@ function syncReferenceControls(){
  $('imageVisible').checked=reference?.visible!==false;
  $('imageScale').value=reference?Math.round(reference.scale*100):100;
  $('imageScaleOut').textContent=$('imageScale').value;
- $('imageVisible').disabled=!reference;$('imageScale').disabled=!reference;$('clearImage').disabled=!reference;
+ $('imageOpacity').value=reference?Math.round((reference.opacity??1)*100):100;
+ $('imageOpacityOut').textContent=$('imageOpacity').value;
+ $('imageVisible').disabled=!reference;$('imageOpacity').disabled=!reference;$('imageScale').disabled=!reference;$('clearImage').disabled=!reference;
 }
 
 // Bitmap region detection is solely for the fill geometry; original strokes remain vectors.
@@ -622,7 +664,7 @@ function fillAt(p){const existing=hitRegion(p);if(existing>=0){selectedRegion=ex
 function renderReference(){
  background.replaceChildren();
  if(reference&&reference.visible!==false){
-  const image=node('image',{x:reference.x,y:reference.y,width:reference.width*reference.scale,height:reference.height*reference.scale,preserveAspectRatio:'none','pointer-events':'none'},background);
+  const image=node('image',{x:reference.x,y:reference.y,width:reference.width*reference.scale,height:reference.height*reference.scale,preserveAspectRatio:'none',opacity:reference.opacity??1,'pointer-events':'none'},background);
   image.setAttributeNS('http://www.w3.org/1999/xlink','href',reference.data);
  }
 }
@@ -696,8 +738,8 @@ function deformStroke(st,base,grabS,delta,radius){
  // Increase the affected arc length as the requested movement grows.
  // For a Gaussian, max |w'(s)| = exp(-1/2)/sigma. Keeping
  // |delta| * max|w'| well below 1 avoids reversing the local stroke.
- // Compact influence: the opposite side of a closed loop must not move.
- // Use a fixed arc-length radius, rather than expanding with drag distance.
+ // Influence expands only when necessary to prevent a large drag
+ // from reversing the curve or creating a sharp hook.
  const sigma=Math.max(radius,1e-6);
  const totalLength=base.lengths.reduce((a,b)=>a+b,0);
  const closed=base.segs.length>1 && dist(base.segs[0].p0,base.segs.at(-1).p1)<1e-5;
@@ -761,35 +803,60 @@ function deformStroke(st,base,grabS,delta,radius){
 // At low influence, a stroke must remain bendable even away from segment joins.
 // Keep both endpoints fixed and move the quadratic control point instead.
 // This changes curvature and endpoint slopes while leaving distant geometry alone.
+// Strictly local bending: subdivide ONLY the grabbed quadratic, preserving
+// its endpoint positions and endpoint derivatives. Adjacent segments are
+// copied verbatim, so small Influence cannot deform the opposite lobes.
+// The extra quadratic pieces are an exact de Casteljau subdivision BEFORE
+// deformation. Their joined derivatives remain identical afterward.
 function bendLocalSegment(st,base,index,t,delta){
- const segs=structuredClone(base.segs);
- const i=Math.max(0,Math.min(segs.length-1,index));
- const seg=segs[i];
- // Avoid extremely large handle motion when the clicked point is near an end.
- const effectiveT=Math.max(.16,Math.min(.84,t));
- const basis=2*effectiveT*(1-effectiveT);
- const shift=mul(delta,1/basis);
- seg.c=add(seg.c,shift);
- // If the junction is smooth, rotate the neighbor's handle to preserve
- // the shared tangent; intentional corners are not touched.
- function align(prev,next){
-   const joint=prev.p1;
-   const a=sub(joint,prev.c),b=sub(next.c,joint);
-   if(len(a)<1e-8||len(b)<1e-8)return;
-   // Respect the edited segment: only change its neighbor.
-   if(next===seg)prev.c=sub(joint,mul(norm(b),len(a)));
-   else next.c=add(joint,mul(norm(a),len(b)));
+ const original=base.segs;
+ const i=Math.max(0,Math.min(original.length-1,index));
+ const source=original[i];
+ if(!source)return;
+ const center=Math.max(.08,Math.min(.92,t));
+ const knots=[0,center*.5,center,(1+center)*.5,1];
+ const lerp=(a,b,f)=>add(mul(a,1-f),mul(b,f));
+ const split=(seg,u)=>{
+   const p=lerp(seg.p0,seg.c,u),q=lerp(seg.c,seg.p1,u),r=lerp(p,q,u);
+   return [{p0:cp(seg.p0),c:p,p1:r},{p0:cp(r),c:q,p1:cp(seg.p1)}];
+ };
+ // Split in ascending global parameter order, always within the remainder.
+ let remaining={p0:cp(source.p0),c:cp(source.c),p1:cp(source.p1)};
+ let previous=0;const pieces=[];
+ for(let k=1;k<knots.length-1;k++){
+   const globalT=knots[k],localT=(globalT-previous)/(1-previous);
+   const [left,right]=split(remaining,localT);
+   pieces.push(left);remaining=right;previous=globalT;
  }
- if(i>0 && !seg.cornerStart)align(segs[i-1],seg);
- if(i<segs.length-1 && !segs[i+1].cornerStart)align(seg,segs[i+1]);
- // Closure is also a shared junction; don't move the opposite side of a
- // closed stroke unless its seam itself is the part being edited.
- const closed=segs.length>1&&dist(base.segs[0].p0,base.segs.at(-1).p1)<1e-5;
- if(closed && !segs[0].cornerStart){
-   if(i===0)align(segs.at(-1),seg);
-   if(i===segs.length-1)align(seg,segs[0]);
- }
- st.segs=segs;
+ pieces.push(remaining);
+ // C1 bump in parameter space: displacement and its derivative vanish at
+ // the original segment endpoints. No neighboring tangent corrections needed.
+ const bump=u=>{
+   const z=u<=center?u/center:(1-u)/(1-center);
+   const v=Math.max(0,Math.min(1,z));
+   return v*v*(3-2*v);
+ };
+ const slope=u=>{
+   const left=u<=center;
+   const z=left?u/center:(1-u)/(1-center);
+   const v=Math.max(0,Math.min(1,z));
+   return (6*v*(1-v))*(left?1/center:-1/(1-center));
+ };
+ const moved=pieces.map((seg,k)=>{
+   const a=knots[k],b=knots[k+1],span=b-a;
+   const wa=bump(a),wb=bump(b);
+   const ctrlWeight=.5*(wa+.5*span*slope(a)+wb-.5*span*slope(b));
+   return {p0:add(seg.p0,mul(delta,wa)),
+           c:add(seg.c,mul(delta,ctrlWeight)),
+           p1:add(seg.p1,mul(delta,wb)),
+           cornerStart:k===0?!!source.cornerStart:false};
+ });
+ // Avoid tiny numeric seams, including at the ends of closed strokes.
+ moved[0].p0=cp(source.p0);
+ moved[0].c=cp(pieces[0].c); // endpoint tangent stays EXACTLY fixed
+ moved.at(-1).p1=cp(source.p1);
+ moved.at(-1).c=cp(pieces.at(-1).c);
+ st.segs=[...structuredClone(original.slice(0,i)),...moved,...structuredClone(original.slice(i+1))];
 }
 // Slope editing works at endpoints/junctions. For a point inside a quadratic,
 // split exactly (de Casteljau) so the new slope pivot lies on the old line.
@@ -833,8 +900,11 @@ function selectBox(a,b,additive){let x0=Math.min(a.x,b.x),x1=Math.max(a.x,b.x),y
 function selectionBounds(ids){let all=ids.map(id=>strokeById(id)).filter(Boolean).map(bbox);return {x0:Math.min(...all.map(b=>b.x0)),x1:Math.max(...all.map(b=>b.x1)),y0:Math.min(...all.map(b=>b.y0)),y1:Math.max(...all.map(b=>b.y1))}}
 function scaleSelection(bases,anchor,fx,fy){for(let [id,segs] of bases){let st=strokeById(id);if(!st)continue;st.segs=segs.map(seg=>({...Object.fromEntries(['p0','c','p1'].map(k=>[k,{x:anchor.x+(seg[k].x-anchor.x)*fx,y:anchor.y+(seg[k].y-anchor.y)*fy}])),cornerStart:!!seg.cornerStart}))} }
 function moveStroke(st,delta){for(let s of st.segs){s.p0=add(s.p0,delta);s.c=add(s.c,delta);s.p1=add(s.p1,delta)}}
-function setMode(next){simplifyBoxMode=next==='simplify';mode=next;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));$('hint').textContent=({replace:'Start on an existing line, draw a new path, and release back on the SAME line. Only the intervening part is replaced. For closed loops, the shorter arc is replaced.',draw:'Start or end near an existing endpoint to snap to it, creating a connected corner without matching tangents. A green ring shows snapped starts. Snap slider sets distance; 0 turns snapping off. Two fingers zoom/pan.',move:'Drag empty space for a selection box. Shift-click or toggle Add selection to add strokes. Group makes them move together.',edit:'Drag anywhere on a blue stroke to reshape it. Drag directly on a corner junction to move the corner and change its angle. Influence controls the surrounding deformation.',slope:'Drag a blue line to rotate its tangent at that point; endpoints work too. Purple junctions retain their corners.',pan:'One finger pans. Pinch with two fingers to zoom.',image:'Drag anywhere to reposition the reference image. Use Image size to scale it independently.',vertex:'Edit Points (E): open Options, choose Add vertex, Round corner, Make corner, or Delete junction, then tap the line or junction. This is not the Reshape tool.',simplify:'Simplify (B): draw a rectangle across a line section. It must contain more quadratic segments than the 1- or 2-curve target in Options. Look at the status text for the result.',fill:'Tap a filled region to select it, then change Fill color to recolor it instantly. Tap an unfilled enclosed region to create a new fill.'})[mode];render()}
-function start(e){if(e.button!==undefined&&e.button!==0)return;e.preventDefault();svg.setPointerCapture(e.pointerId);let scr=screenPoint(e),p=worldPoint(e);pointers.set(e.pointerId,scr);
+function toggleReferenceVisibility(){if(!reference)return;reference.visible=reference.visible===false;$('imageVisible').checked=reference.visible;render()}
+function setMode(next){simplifyBoxMode=next==='simplify';mode=next;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));$('hint').textContent=({replace:'Start on an existing line, draw a new path, and release back on the SAME line. Only the intervening part is replaced. For closed loops, the shorter arc is replaced.',draw:'Start or end near an existing endpoint to snap to it, creating a connected corner without matching tangents. A green ring shows snapped starts. Snap slider sets distance; 0 turns snapping off. Two fingers zoom/pan.',move:'Drag empty space for a selection box. Shift-click or toggle Add selection to add strokes. Group makes them move together.',edit:'Drag anywhere on a blue stroke to reshape it. Drag directly on a corner junction to move the corner and change its angle. Influence controls the surrounding deformation.',slope:'Drag a blue line to rotate its tangent at that point; endpoints work too. Purple junctions retain their corners.',pan:'One finger pans. Pinch with two fingers to zoom.',image:'Drag anywhere to reposition the reference image. Use Image size to scale it independently.',vertex:'Edit Points (E): open Options, choose Add vertex, Round corner, Make corner, or Delete junction, then tap the line or junction. This is not the Reshape tool.',cut:'Cut (C): drag a rectangle to delete every portion of the lines inside it. The remaining portions become independent strokes.',simplify:'Simplify (B): draw a rectangle across a line section. It must contain more quadratic segments than the 1- or 2-curve target in Options. Look at the status text for the result.',fill:'Tap a filled region to select it, then change Fill color to recolor it instantly. Tap an unfilled enclosed region to create a new fill.'})[mode];render()}
+function start(e){if(e.button!==undefined&&e.button!==0&&e.button!==1)return;e.preventDefault();svg.setPointerCapture(e.pointerId);let scr=screenPoint(e),p=worldPoint(e);pointers.set(e.pointerId,scr);
+// Middle mouse drag temporarily pans, irrespective of the selected tool.
+if(e.pointerType==='mouse'&&e.button===1){gesture={kind:'pan',last:scr,middle:true};return}
 if(pointers.size===2){if(gesture?.kind==='replace')replaceDraft=null;if(gesture?.kind==='draw') {draft=null;render()}let a=[...pointers.values()];gesture={kind:'pinch',startView:{...view},center:mul(add(a[0],a[1]),.5),distance:dist(a[0],a[1])};return}
 if(pointers.size>2)return;
 if(mode==='pan'){gesture={kind:'pan',last:scr};return}
@@ -842,7 +912,7 @@ if(mode==='image'){gesture=reference?{kind:'image',last:p}:null;return}
 if(mode==='replace'){const anchor=nearestReplacePoint(p);if(!anchor){$('hint').textContent='Start directly on an existing line.';gesture=null;return}replaceDraft={start:anchor,raw:[cp(anchor.point)],target:null};gesture={kind:'replace'};render();return}
 if(mode==='draw'){const snap=nearestStrokeEndpoint(p);draft=newDraft(snap||p);draft.snappedStart=!!snap;snapPreview=null;gesture={kind:'draw'};render();return}
 if(mode==='fill'){fillAt(p);return}
-if(mode==='simplify'){selectionRect={a:p,b:p};gesture={kind:'simplifybox'};render();return}
+if(mode==='simplify'||mode==='cut'){selectionRect={a:p,b:p};gesture={kind:mode==='cut'?'cutbox':'simplifybox'};render();return}
 if(mode==='vertex'){
   // Find the actual closest point on every curve, independent of SVG hit testing.
   // Add selects the curve itself; only junction operations prefer dot proximity.
@@ -913,7 +983,7 @@ if(mode==='edit'&&id!==null){
     const st=strokeById(id),hit=closestOnStroke(st,p);
     const influence=Number($('influence').value)/100;
     const radius=Math.max(12/view.s,hit.total*(.015+.58*influence));
-    gesture={kind:'deform',id,origin:p,grabS:hit.s,base:{segs:structuredClone(st.segs),lengths:hit.lengths},radius,segmentIndex:hit.segmentIndex,t:hit.t,influence};
+    gesture={kind:'deform',id,origin:p,grabS:hit.s,base:{segs:structuredClone(st.segs),lengths:hit.lengths},radius,segmentIndex:hit.segmentIndex,t:hit.t,influence,tangent:norm(sub(qpoint(st.segs[hit.segmentIndex],Math.min(1,hit.t+.005)),qpoint(st.segs[hit.segmentIndex],Math.max(0,hit.t-.005))))};
   }
   render();return;
 }
@@ -924,7 +994,7 @@ if(gesture.kind==='pan'){view.x+=s.x-gesture.last.x;view.y+=s.y-gesture.last.y;g
 else if(gesture.kind==='image'){if(reference){reference.x+=p.x-gesture.last.x;reference.y+=p.y-gesture.last.y;gesture.last=p;render()}}
 else if(gesture.kind==='replace'){if(dist(replaceDraft.raw.at(-1),p)>0.6/view.s)replaceDraft.raw.push(cp(p));let hit=nearestReplacePoint(p,replaceDraft.start.id);replaceDraft.target=hit && replaceDraft.raw.length>4?hit:null;scheduleRender()}
 else if(gesture.kind==='draw'){snapPreview=snapDraftEndpoint(p);updateDrawingSpeed(p,e.timeStamp);updateDraft(p);scheduleRender()}
-else if(gesture.kind==='box'||gesture.kind==='simplifybox'){selectionRect.b=p;render()}
+else if(gesture.kind==='box'||gesture.kind==='simplifybox'||gesture.kind==='cutbox'){selectionRect.b=p;render()}
 else if(gesture.kind==='move'){for(let id of gesture.ids){const st=strokeById(id);if(st)moveStroke(st,sub(p,gesture.last))}gesture.last=p;render()}
 else if(gesture.kind==='scale'){
  const g=gesture,b=g.bounds,w=Math.max(20/view.s,b.x1-b.x0),h=Math.max(20/view.s,b.y1-b.y0);
@@ -940,7 +1010,26 @@ else if(gesture.kind==='dragcorner'){
  a.c=add(a.c,mul(d,.7));b.c=add(b.c,mul(d,.7));
  b.cornerStart=true;render();}
 else if(gesture.kind==='slope'){rotateSlope(strokeById(gesture.id),gesture,p);render()}
-else if(gesture.kind==='deform'){const g=gesture,st=strokeById(g.id),delta=sub(p,g.origin);if(g.influence<=.15){bendLocalSegment(st,g.base,g.segmentIndex,g.t,delta)}else{deformStroke(st,g.base,g.grabS,delta,g.radius)}render()}}
+else if(gesture.kind==='deform'){
+ const g=gesture,st=strokeById(g.id),delta=sub(p,g.origin);
+ // Respond to the FULL mouse movement: a leftward drag must not become
+ // a vertical movement just because the cursor is near a sloping tangent.
+ // When movement is large relative to the supported span, broaden its
+ // influence to keep the arc-length warp from doubling back on itself.
+ const total=g.base.lengths.reduce((a,b)=>a+b,0);
+ const span=g.base.lengths[g.segmentIndex]||total;
+ const tangential=Math.abs(dot(delta,g.tangent));
+ if(g.influence<=.15 && tangential < span*.20 && len(delta)<span*.40){
+   // Small local motion: preserve the original outer endpoints/tangents.
+   bendLocalSegment(st,g.base,g.segmentIndex,g.t,delta);
+ }else{
+   // Larger motion, especially along the line, must move neighboring
+   // junctions instead of forcing a sharp local spike or hook.
+   const adaptiveRadius=Math.max(g.radius,0.95*len(delta),tangential*1.15);
+   deformStroke(st,g.base,g.grabS,delta,adaptiveRadius);
+ }
+ render();
+}}
 // Joined strokes become one path, with true corners retained as flags.
 function reverseSegments(segs){return segs.slice().reverse().map((s,i)=>({p0:cp(s.p1),c:cp(s.c),p1:cp(s.p0),cornerStart:i===0?false:!!segs[segs.length-i].cornerStart}))}
 function endpointMatch(p,exclude=new Set()){
@@ -972,6 +1061,42 @@ function mergePair(a,b){const points=[];for(let i=0;i<=24;i++)points.push(qpoint
  const c=den>1e-9?mul(numerator,1/den):mul(add(p0,p1),.5);const seg={p0,c,p1,cornerStart:!!a.cornerStart};
  let maxErr=0;for(let i=0;i<points.length;i++){const t=dists[i]/total;maxErr=Math.max(maxErr,dist(points[i],qpoint(seg,t)))}
  return {seg,maxErr};
+}
+
+// Conservative automatic geometry cleanup. Never removes deliberate corners.
+// Tests the actual locus of both curves, and also guards tangents at the
+// untouched outer ends so merging cannot perturb adjacent geometry.
+function autoSimplifyStroke(st, maxScreenError=2.5){
+ if(!st || !st.segs || st.segs.length<2)return 0;
+ const tol=maxScreenError/Math.max(view.s,0.01);
+ const angleLimit=Math.cos(13*Math.PI/180);
+ const safeDir=(v)=>len(v)>1e-7?norm(v):null;
+ let count=0;
+ for(let pass=0;pass<300;pass++){
+   let best=null;
+   for(let i=1;i<st.segs.length;i++){
+     const a=st.segs[i-1],b=st.segs[i];
+     if(b.cornerStart)continue;
+     const merge=mergePair(a,b),c=merge.seg;
+     if(merge.maxErr>tol)continue;
+     const directions=[
+       [safeDir(sub(a.c,a.p0)),safeDir(sub(c.c,c.p0))],
+       [safeDir(sub(b.p1,b.c)),safeDir(sub(c.p1,c.c))]
+     ];
+     if(directions.some(([x,y])=>x&&y&&dot(x,y)<angleLimit))continue;
+     // Reject a candidate if the merged quadratic doubles back or
+     // creates a nearly zero-length handle.
+     if(!Number.isFinite(c.c.x+c.c.y)||dist(c.p0,c.p1)<1e-4)continue;
+     if(!best||merge.maxErr<best.error)best={i,seg:c,error:merge.maxErr};
+   }
+   if(!best)break;
+   st.segs.splice(best.i-1,2,best.seg);
+   count++;
+ }
+ if(st.closed && st.segs.length){
+   st.segs.at(-1).p1=cp(st.segs[0].p0);
+ }
+ return count;
 }
 function chosenStroke(){return vertexChoice&&strokeById(vertexChoice.id)}
 function addVertex(){const st=chosenStroke(),v=vertexChoice;if(!st||!v)return;const i=v.i,t=v.type==='join'?0:v.t;if(v.type==='join'||t<.01||t>.99)return;
@@ -1050,6 +1175,47 @@ function simplifyInBox(a,b){
  invalidateFills();render();$('hint').textContent=`Simplified ${changes.length} section(s) to ${target} curve${target===1?'':'s'}; maximum deviation ${Math.max(...changes.map(c=>c.error))*view.s|0}px. Use Undo if too different.`;
 }
 
+// Cut across any stroke with an axis-aligned rectangular eraser.
+// Find each crossing in parameter space and use exact de Casteljau splits;
+// kept pieces retain precisely the original curve geometry.
+function cutBox(a,b){
+ const rect={x0:Math.min(a.x,b.x),x1:Math.max(a.x,b.x),y0:Math.min(a.y,b.y),y1:Math.max(a.y,b.y)};
+ if(rect.x1-rect.x0<2/view.s||rect.y1-rect.y0<2/view.s)return;
+ const inside=p=>p.x>rect.x0&&p.x<rect.x1&&p.y>rect.y0&&p.y<rect.y1;
+ let changed=false,output=[],removed=0;
+ for(const st of strokes){
+  let chunks=[],current=[];
+  const flush=()=>{if(current.length){chunks.push(current);current=[]}};
+  for(const seg of st.segs){
+   const n=Math.max(60,Math.ceil((dist(seg.p0,seg.c)+dist(seg.c,seg.p1))*view.s/3));
+   let crossings=[0];let previousInside=inside(qpoint(seg,0));
+   for(let k=1;k<=n;k++){
+    const t=k/n,status=inside(qpoint(seg,t));
+    if(status!==previousInside){let lo=(k-1)/n,hi=t;for(let it=0;it<28;it++){let mid=(lo+hi)/2;if(inside(qpoint(seg,mid))===previousInside)lo=mid;else hi=mid}crossings.push((lo+hi)/2)}
+    previousInside=status;
+   }
+   crossings.push(1);
+   for(let k=0;k<crossings.length-1;k++){
+    const l=crossings[k],r=crossings[k+1];if(r-l<1e-8)continue;
+    const keep=!inside(qpoint(seg,(l+r)/2));
+    if(!keep){removed++;changed=true;flush();continue}
+    let piece=seg;
+    if(r<1-1e-9)piece=splitQuadratic(piece,r)[0];
+    if(l>1e-9)piece=splitQuadratic(piece,l/r)[1];
+    piece.cornerStart=current.length?!!(l===0&&seg.cornerStart):false;
+    if(current.length && dist(current.at(-1).p1,piece.p0)>1e-4)flush();
+    current.push(piece);
+   }
+  }
+  flush();
+  if(!chunks.length){if(st.segs.length)changed=true;continue}
+  if(chunks.length===1&&removed===0){output.push(st);continue}
+  changed=true;
+  chunks.forEach((segs,i)=>output.push({id:i===0?st.id:nextId++,segs,group:st.group,closed:false}));
+ }
+ if(!changed){$('hint').textContent='Cut box did not cross a line.';return}
+ checkpoint();strokes=output;selectedIds.clear();selected=null;invalidateFills();$('hint').textContent='Cut completed. Remaining pieces are independent strokes; Undo (U) restores the original.';
+}
 function simplifySelected(){if(!selectedIds.size)return;const threshold=Number($('simplifyTol').value)/view.s;checkpoint();let removed=0;
  for(const id of selectedIds){const st=strokeById(id);if(!st)continue;for(let iter=0;iter<500;iter++){let best=null;for(let i=1;i<st.segs.length;i++){if(st.segs[i].cornerStart)continue;const fit=mergePair(st.segs[i-1],st.segs[i]);if(fit.maxErr<=threshold&&(!best||fit.maxErr<best.maxErr))best={i,...fit}}if(!best)break;st.segs.splice(best.i-1,2,best.seg);removed++}}
  vertexChoice=null;invalidateFills();render();$('hint').textContent=`Simplified ${removed} spline junctions (maximum local deviation ${$('simplifyTol').value} px).`;
@@ -1062,11 +1228,12 @@ function end(e){if(!pointers.has(e.pointerId))return;e.preventDefault();pointers
   // Fit the freehand replacement using the same incremental quadratic fitter.
   let oldDraft=draft;draft=newDraft(points[0]);for(let k=1;k<points.length;k++)updateDraft(points[k],false);
   updateDraft(points.at(-1),true);newSegs=draftSegments();draft=oldDraft;
-  if(newSegs.length){checkpoint();if(replaceStrokeArc(st,r.start,hit,newSegs)){invalidateFills();selectedIds=new Set([st.id]);selected=st.id;$('hint').textContent='Section replaced. Undo (U) restores the original.'}}
+  if(newSegs.length){checkpoint();if(replaceStrokeArc(st,r.start,hit,newSegs)){autoSimplifyStroke(st,2.5);invalidateFills();selectedIds=new Set([st.id]);selected=st.id;$('hint').textContent='Section replaced. Undo (U) restores the original.'}}
  }else $('hint').textContent='Finish on the same line to replace its middle section.';
  replaceDraft=null;
  }
- if(gesture?.kind==='draw'&&draft?.raw.length>1){let release=worldPoint(e),snapEnd=snapDraftEndpoint(release);if(snapEnd){draft.raw[draft.raw.length-1]=cp(snapEnd);release=snapEnd;}updateDraft(release,true);let fitted=draftSegments();if(snapEnd&&fitted.length){fitted[fitted.length-1].p1=cp(snapEnd); if(dist(snapEnd,fitted[0].p0)<1e-5)fitted[fitted.length-1].p1=cp(fitted[0].p0)}if(fitted.length){checkpoint();if(dist(fitted[0].p0,fitted.at(-1).p1)>1e-5)fitted=mergeSnappedStroke(fitted);let st={id:nextId++,segs:fitted,closed:dist(fitted[0].p0,fitted.at(-1).p1)<1e-5};if(st.closed)st.segs.at(-1).p1=cp(st.segs[0].p0);strokes.push(st);selected=null;selectedIds.clear()}}if(gesture?.kind==='box'&&selectionRect){selectBox(selectionRect.a,selectionRect.b,gesture.additive)}if(gesture?.kind==='simplifybox'&&selectionRect){simplifyInBox(selectionRect.a,selectionRect.b)}selectionRect=null;draft=null;snapPreview=null;gesture=null;invalidateFills();render()}
+ if(gesture?.kind==='draw'&&draft?.raw.length>1){let release=worldPoint(e),snapEnd=snapDraftEndpoint(release);if(snapEnd){draft.raw[draft.raw.length-1]=cp(snapEnd);release=snapEnd;}updateDraft(release,true);let fitted=draftSegments();if(snapEnd&&fitted.length){fitted[fitted.length-1].p1=cp(snapEnd); if(dist(snapEnd,fitted[0].p0)<1e-5)fitted[fitted.length-1].p1=cp(fitted[0].p0)}if(fitted.length){checkpoint();if(dist(fitted[0].p0,fitted.at(-1).p1)>1e-5)fitted=mergeSnappedStroke(fitted);let st={id:nextId++,segs:fitted,closed:dist(fitted[0].p0,fitted.at(-1).p1)<1e-5};if(st.closed)st.segs.at(-1).p1=cp(st.segs[0].p0);autoSimplifyStroke(st,2.5);strokes.push(st);selected=null;selectedIds.clear()}}if(['deform','dragcorner','slope'].includes(gesture?.kind)){const st=strokeById(gesture.id);if(st)autoSimplifyStroke(st,2.5)}if(gesture?.kind==='box'&&selectionRect){selectBox(selectionRect.a,selectionRect.b,gesture.additive)}if(gesture?.kind==='simplifybox'&&selectionRect){simplifyInBox(selectionRect.a,selectionRect.b)}if(gesture?.kind==='cutbox'&&selectionRect){cutBox(selectionRect.a,selectionRect.b)}selectionRect=null;draft=null;snapPreview=null;gesture=null;invalidateFills();render()}
+svg.addEventListener('auxclick',e=>{if(e.button===1)e.preventDefault()});
 svg.addEventListener('pointerdown',start);svg.addEventListener('pointermove',move);svg.addEventListener('pointerup',end);svg.addEventListener('pointercancel',end);
 svg.addEventListener('wheel',e=>{e.preventDefault();setZoom(view.s*Math.exp(-e.deltaY*.0015),screenPoint(e))},{passive:false});
 document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{setMode(b.dataset.mode);if(b.dataset.mode==='vertex')$('hint').textContent='Open Options, choose a point operation, then tap the curve or junction.'});$('tolerance').oninput=e=>$('tolOut').textContent=e.target.value;
@@ -1097,11 +1264,12 @@ $('imageFile').onchange=async e=>{
   checkpoint();
   const w=img.naturalWidth,h=img.naturalHeight;
   const scale=Math.min(1,Math.min(svg.clientWidth/w,svg.clientHeight/h)*.85)/view.s;
-  reference={data,width:w,height:h,scale,x:(svg.clientWidth/2-view.x)/view.s-w*scale/2,y:(svg.clientHeight/2-view.y)/view.s-h*scale/2,visible:true};
+  reference={data,width:w,height:h,scale,x:(svg.clientWidth/2-view.x)/view.s-w*scale/2,y:(svg.clientHeight/2-view.y)/view.s-h*scale/2,visible:true,opacity:1};
   syncReferenceControls();render();
  }catch(err){alert('Could not load image: '+err.message)}e.target.value='';
 };
 $('imageVisible').onchange=e=>{if(reference){reference.visible=e.target.checked;render()}};
+$('imageOpacity').oninput=e=>{if(!reference)return;reference.opacity=Number(e.target.value)/100;$('imageOpacityOut').textContent=e.target.value;render()};
 $('imageScale').oninput=e=>{if(!reference)return;let target=Number(e.target.value)/100,old=reference.scale;reference.x+=(reference.width*(old-target))/2;reference.y+=(reference.height*(old-target))/2;reference.scale=target;$('imageScaleOut').textContent=e.target.value;render()};
 $('clearImage').onclick=()=>{if(reference){checkpoint();reference=null;syncReferenceControls();render()}};
 $('gapSize').oninput=()=>{$('gapOut').textContent=$('gapSize').value;invalidateFills();render()};
@@ -1144,40 +1312,95 @@ function toggleFillPopup(force){
 let pickerHue=0,pickerSat=.35,pickerVal=.91;
 function hsvHex(h,s,v){const c=v*s,x=c*(1-Math.abs((h/60)%2-1)),m=v-c;let rgb=h<60?[c,x,0]:h<120?[x,c,0]:h<180?[0,c,x]:h<240?[0,x,c]:h<300?[x,0,c]:[c,0,x];return '#'+rgb.map(a=>Math.round((a+m)*255).toString(16).padStart(2,'0')).join('')}
 function setPickerFromHex(hex){const n=parseInt(hex.slice(1),16),r=((n>>16)&255)/255,g=((n>>8)&255)/255,b=(n&255)/255,hi=Math.max(r,g,b),lo=Math.min(r,g,b),d=hi-lo;let h=0;if(d){if(hi===r)h=60*((g-b)/d%6);else if(hi===g)h=60*((b-r)/d+2);else h=60*((r-g)/d+4)}pickerHue=(h+360)%360;pickerSat=hi?d/hi:0;pickerVal=hi;paintPicker()}
-function paintPicker(){const sq=$('colorSquare'),ctx=sq.getContext('2d'),w=sq.width,h=sq.height;ctx.fillStyle=`hsl(${pickerHue} 100% 50%)`;ctx.fillRect(0,0,w,h);let white=ctx.createLinearGradient(0,0,w,0);white.addColorStop(0,'white');white.addColorStop(1,'#ffffff00');ctx.fillStyle=white;ctx.fillRect(0,0,w,h);let black=ctx.createLinearGradient(0,0,0,h);black.addColorStop(0,'#00000000');black.addColorStop(1,'black');ctx.fillStyle=black;ctx.fillRect(0,0,w,h);ctx.beginPath();ctx.arc(pickerSat*w,(1-pickerVal)*h,5,0,Math.PI*2);ctx.lineWidth=2;ctx.strokeStyle=pickerVal<.5?'white':'black';ctx.stroke();ctx.beginPath();ctx.arc(pickerSat*w,(1-pickerVal)*h,6.5,0,Math.PI*2);ctx.lineWidth=1;ctx.strokeStyle=pickerVal<.5?'black':'white';ctx.stroke();const bar=$('hueBar'),bc=bar.getContext('2d'),gr=bc.createLinearGradient(0,0,bar.width,0);for(let k=0;k<=6;k++)gr.addColorStop(k/6,`hsl(${k*60} 100% 50%)`);bc.fillStyle=gr;bc.fillRect(0,0,bar.width,bar.height);bc.fillStyle='white';bc.fillRect(pickerHue/360*bar.width-2,0,4,bar.height);bc.strokeStyle='#111';bc.strokeRect(pickerHue/360*bar.width-2,.5,4,bar.height-1);$('colorPreview').style.background=$('fillColor').value}
+function paintPicker(){const sq=$('colorSquare'),ctx=sq.getContext('2d'),w=sq.width,h=sq.height;ctx.fillStyle=`hsl(${pickerHue} 100% 50%)`;ctx.fillRect(0,0,w,h);let white=ctx.createLinearGradient(0,0,w,0);white.addColorStop(0,'white');white.addColorStop(1,'#ffffff00');ctx.fillStyle=white;ctx.fillRect(0,0,w,h);let black=ctx.createLinearGradient(0,0,0,h);black.addColorStop(0,'#00000000');black.addColorStop(1,'black');ctx.fillStyle=black;ctx.fillRect(0,0,w,h);ctx.beginPath();ctx.arc(pickerSat*w,(1-pickerVal)*h,5,0,Math.PI*2);ctx.lineWidth=2;ctx.strokeStyle=pickerVal<.5?'white':'black';ctx.stroke();ctx.beginPath();ctx.arc(pickerSat*w,(1-pickerVal)*h,6.5,0,Math.PI*2);ctx.lineWidth=1;ctx.strokeStyle=pickerVal<.5?'black':'white';ctx.stroke();const bar=$('hueBar'),bc=bar.getContext('2d'),gr=bc.createLinearGradient(0,0,bar.width,0);for(let k=0;k<=6;k++)gr.addColorStop(k/6,`hsl(${k*60} 100% 50%)`);bc.fillStyle=gr;bc.fillRect(0,0,bar.width,bar.height);bc.fillStyle='white';bc.fillRect(pickerHue/360*bar.width-2,0,4,bar.height);bc.strokeStyle='#111';bc.strokeRect(pickerHue/360*bar.width-2,.5,4,bar.height-1)}
 function pickerChange(){const input=$('fillColor');input.value=hsvHex(pickerHue,pickerSat,pickerVal);input.dispatchEvent(new Event('input',{bubbles:true}));paintPicker()}
 function pickerDrag(canvas,callback){let down=false;function update(e){const r=canvas.getBoundingClientRect(),x=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y=Math.max(0,Math.min(1,(e.clientY-r.top)/r.height));callback(x,y);pickerChange()}canvas.addEventListener('pointerdown',e=>{e.preventDefault();down=true;canvas.setPointerCapture(e.pointerId);update(e)});canvas.addEventListener('pointermove',e=>{if(down){e.preventDefault();update(e)}});for(const ev of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(ev,()=>{down=false;$('fillColor').dispatchEvent(new Event('change'))})}
 pickerDrag($('colorSquare'),(x,y)=>{pickerSat=x;pickerVal=1-y});pickerDrag($('hueBar'),(x)=>pickerHue=x*359.999);
-// Artist palettes, ordered by value: lit highlights through deep shadows.
-// Rows represent different undertone/color families, not demographic categories.
-const colorPalettes={
- skin:[
- '#fff1dc','#f8d9bf','#ddb391','#b78263','#744a3c',
- '#ffdfc4','#f1b68c','#cd8b64','#985c42','#543429',
- '#f5d8ba','#d8a37e','#ae7455','#754b3a','#372620',
- '#ead1bd','#ba947b','#946953','#614335','#281d1a'],
- hair:[
- '#fff1ba','#e8c46e','#c4984e','#866133','#49351f',
- '#f9d4a7','#d39b57','#a66d34','#704321','#35251a',
- '#f4b6a0','#c67850','#994933','#612f29','#291d1c',
- '#ddd2c7','#aaa09a','#747075','#48444a','#1b1b20']
-};
+// Fill color UI modes. "All" uses the unrestricted HSV picker.
+// Skin and Hair instead expose artist-friendly sliders.
 let paletteMode='all';
-function renderColorPalette(){
- const sw=$('swatchPalette'),hint=$('paletteHint'),free=paletteMode==='all';
- sw.hidden=free;hint.hidden=free;$('colorSquare').hidden=!free;$('hueBar').hidden=!free;
- sw.replaceChildren();
- if(!free){for(const hex of colorPalettes[paletteMode]){
-  const b=document.createElement('button');b.type='button';b.style.backgroundColor=hex;b.title=hex;b.setAttribute('aria-label',`Choose ${paletteMode} shade ${hex}`);
-  b.classList.toggle('chosen',$('fillColor').value.toLowerCase()===hex);
-  b.onclick=()=>{const inp=$('fillColor');inp.value=hex;inp.dispatchEvent(new Event('input',{bubbles:true}));inp.dispatchEvent(new Event('change',{bubbles:true}));setPickerFromHex(hex);renderColorPalette()};
-  sw.append(b);
- }}
- document.querySelectorAll('#paletteModes button').forEach(b=>b.classList.toggle('selected',b.dataset.palette===paletteMode));
+const skinState={complexion:58,undertone:18,lighting:0};
+const hairState={family:'brown',depth:45,warmth:10,lighting:0};
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const mix=(a,b,t)=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t});
+function rgbToHex(r,g,b){return '#'+[r,g,b].map(v=>Math.round(clamp(v,0,255)).toString(16).padStart(2,'0')).join('')}
+function skinColor(){
+  const t=skinState.complexion/100;
+  const anchors=[{x:58,y:37,z:31},{x:109,y:74,z:58},{x:159,y:117,z:90},{x:205,y:164,z:131},{x:241,y:211,z:185}];
+  const pos=t*(anchors.length-1),i=Math.min(anchors.length-2,Math.floor(pos)),f=pos-i;
+  let c=mix(anchors[i],anchors[i+1],f);
+  const u=skinState.undertone/100;
+  c.x+=18*u+5*Math.max(0,u);
+  c.y+=6*u-7*Math.min(0,u);
+  c.z+=-12*u+10*Math.min(0,u);
+  const lit=skinState.lighting/100;
+  const gain=lit>=0?1+0.32*lit:1+0.52*lit;
+  c.x*=gain;c.y*=gain;c.z*=gain;
+  if(lit>0){c.x+=10*lit;c.y+=8*lit;c.z+=6*lit}else{c.x+=4*lit;c.y+=6*lit;c.z+=8*lit}
+  return rgbToHex(c.x,c.y,c.z);
 }
-document.querySelectorAll('#paletteModes button').forEach(b=>b.onclick=()=>{paletteMode=b.dataset.palette;renderColorPalette()});
-$('fillColor').addEventListener('input',()=>{if(paletteMode!=='all')renderColorPalette()});
-renderColorPalette();
+function hairColor(){
+  const families={
+    black:[{x:14,y:13,z:15},{x:32,y:29,z:33},{x:56,y:50,z:57},{x:88,y:79,z:84}],
+    brown:[{x:35,y:22,z:16},{x:76,y:49,z:31},{x:122,y:83,z:52},{x:176,y:132,z:89}],
+    blonde:[{x:117,y:88,z:34},{x:170,y:132,z:55},{x:213,y:178,z:96},{x:245,y:224,z:166}],
+    auburn:[{x:59,y:27,z:19},{x:108,y:51,z:33},{x:160,y:84,z:54},{x:211,y:136,z:92}],
+    red:[{x:73,y:24,z:17},{x:134,y:52,z:28},{x:188,y:90,z:44},{x:228,y:144,z:84}],
+    gray:[{x:58,y:57,z:60},{x:103,y:102,z:106},{x:156,y:156,z:160},{x:219,y:220,z:224}]
+  };
+  const anchors=families[hairState.family]||families.brown;
+  const t=hairState.depth/100;
+  const pos=t*(anchors.length-1),i=Math.min(anchors.length-2,Math.floor(pos)),f=pos-i;
+  let c=mix(anchors[i],anchors[i+1],f);
+  const w=hairState.warmth/100;
+  c.x+=18*w;
+  c.y+=10*w+6*Math.max(0,w);
+  c.z+=-16*w+10*Math.min(0,w);
+  const lit=hairState.lighting/100;
+  const gain=lit>=0?1+0.42*lit:1+0.6*lit;
+  c.x*=gain;c.y*=gain;c.z*=gain;
+  if(lit>0){c.x+=12*lit;c.y+=10*lit;c.z+=8*lit}else{c.x+=2*lit;c.y+=3*lit;c.z+=4*lit}
+  return rgbToHex(c.x,c.y,c.z);
+}
+function describeSigned(v,neg,pos){if(v<-8)return neg; if(v>8)return pos; return 'neutral'}
+function updateToneLabels(){
+  $('skinComplexionOut').textContent=['deep','dark','mid','light','fair'][Math.min(4,Math.floor(skinState.complexion/20))];
+  $('skinUndertoneOut').textContent=(skinState.undertone<-45)?'cool':(skinState.undertone<5)?'olive':(skinState.undertone<45)?'neutral':'warm';
+  $('skinLightingOut').textContent=describeSigned(skinState.lighting,'shadow','lit');
+  $('hairFamilyOut').textContent=hairState.family;
+  $('hairDepthOut').textContent=['deep','dark','mid','light','pale'][Math.min(4,Math.floor(hairState.depth/20))];
+  $('hairWarmthOut').textContent=describeSigned(hairState.warmth,'ashy','warm');
+  $('hairLightingOut').textContent=describeSigned(hairState.lighting,'shadow','lit');
+}
+function setManagedFillColor(hex,final=false){
+  const inp=$('fillColor');
+  inp.value=hex;
+  inp.dispatchEvent(new Event('input',{bubbles:true}));
+  if(final)inp.dispatchEvent(new Event('change',{bubbles:true}));
+}
+function applySkinColor(final=false){setManagedFillColor(skinColor(),final)}
+function applyHairColor(final=false){setManagedFillColor(hairColor(),final)}
+function renderColorModeUI(){
+  const isAll=paletteMode==='all',isSkin=paletteMode==='skin',isHair=paletteMode==='hair';
+  $('colorSquare').hidden=!isAll; $('hueBar').hidden=!isAll;
+  $('colorSquare').style.display=isAll?'block':'none'; $('hueBar').style.display=isAll?'block':'none';
+  $('skinControls').hidden=!isSkin; $('hairControls').hidden=!isHair;
+  $('paletteHint').hidden=isAll;
+  $('paletteHint').textContent=isSkin?'Skin: complexion, undertone, lighting.':'Hair: family, depth, warmth, lighting.';
+  document.querySelectorAll('#paletteModes button').forEach(b=>b.classList.toggle('selected',b.dataset.palette===paletteMode));
+  updateToneLabels(); if(isAll)paintPicker();
+}
+for(const el of document.querySelectorAll('#paletteModes button'))el.onclick=()=>{paletteMode=el.dataset.palette;renderColorModeUI()};
+$('skinComplexion').oninput=e=>{skinState.complexion=+e.target.value;updateToneLabels();applySkinColor(false)};
+$('skinUndertone').oninput=e=>{skinState.undertone=+e.target.value;updateToneLabels();applySkinColor(false)};
+$('skinLighting').oninput=e=>{skinState.lighting=+e.target.value;updateToneLabels();applySkinColor(false)};
+$('hairFamily').oninput=e=>{hairState.family=e.target.value;updateToneLabels();applyHairColor(false)};
+$('hairDepth').oninput=e=>{hairState.depth=+e.target.value;updateToneLabels();applyHairColor(false)};
+$('hairWarmth').oninput=e=>{hairState.warmth=+e.target.value;updateToneLabels();applyHairColor(false)};
+$('hairLighting').oninput=e=>{hairState.lighting=+e.target.value;updateToneLabels();applyHairColor(false)};
+$('skinComplexion').onchange=$('skinUndertone').onchange=$('skinLighting').onchange=()=>applySkinColor(true);
+$('hairFamily').onchange=$('hairDepth').onchange=$('hairWarmth').onchange=$('hairLighting').onchange=()=>applyHairColor(true);
+renderColorModeUI();
 setPickerFromHex($('fillColor').value);
 $('fillPopupToggle').onclick=()=>toggleFillPopup();updateFillSwatch();
 $('optionsToggle').onclick=()=>toggleOptions(!$('optionsPanel').classList.contains('open'));
@@ -1209,9 +1432,9 @@ window.addEventListener('keydown',e=>{
  if(typing || mod || e.altKey || e.repeat)return;
  const key=e.key.toLowerCase();
  const actions={
-  d:()=>setMode('draw'),t:()=>setMode('replace'),v:()=>setMode('move'),m:()=>setMode('edit'),
+  d:()=>setMode('draw'),t:()=>setMode('replace'),w:()=>setMode('move'),v:viewEntireDrawing,m:()=>setMode('edit'),
   f:()=>setMode('fill'),s:()=>setMode('slope'),e:()=>setMode('vertex'),
-  b:()=>setMode('simplify'),p:()=>setMode('pan'),i:()=>setMode('image'),
+  b:()=>setMode('simplify'),c:()=>setMode('cut'),p:()=>setMode('pan'),i:toggleReferenceVisibility,h:()=>setMode('image'),
   o:()=>$('optionsToggle').click(),u:undo,r:redo,k:backSegment,
   j:()=>$('save').click(),g:()=>$('export').click(),l:()=>$('load').click(),
   x:()=>$('del').click()
