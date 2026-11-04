@@ -22,6 +22,8 @@
 #optionsPanel .options-body input[type=range]{width:82px;min-width:65px;flex:1}
 #optionsPanel .options-body input[type=text]{width:100%;min-height:36px;border:1px solid #ccd4df;border-radius:7px;padding:7px}
 #optionsPanel .options-body .sep{width:100%;height:1px;margin:1px 0}
+#optionsPanel .raster-export{display:flex;gap:6px}
+#optionsPanel .raster-export button{flex:1;text-align:center}
 #optionsPanel .options-body button{font-size:11px;min-height:30px;padding:5px 7px;text-align:left}
 #optionsPanel .options-body strong{font-size:11px;line-height:1.3}
 #optionsPanel .options-body select{max-width:100%;font-size:11px}
@@ -55,6 +57,7 @@
 </style></head>
 <body><div id="app"><div id="workspace"><nav id="toolbar" aria-label="Drawing tools">
 <button data-mode="draw" class="active">Draw (D)</button>
+<button data-mode="straight">Straight (A)</button><button id="finishStraight" hidden type="button">Finish line</button>
 <button data-mode="replace">Replace (T)</button>
 <button data-mode="move">Move (W)</button>
 <button data-mode="edit">Reshape (M)</button>
@@ -97,6 +100,7 @@
 <input type="file" id="file" accept=".json,application/json" hidden>
 </nav><aside id="optionsPanel" aria-label="Drawing options"><div class="options-head"><strong>Options</strong><button id="closeOptions" aria-label="Close options">✕</button></div><div class="options-body">
 <label>Drawing name <input id="drawingName" type="text" placeholder="spline-sketch" autocomplete="off" spellcheck="false"></label>
+<div class="raster-export"><button id="exportPng" type="button">Save PNG</button><button id="exportJpg" type="button">Save JPG</button></div>
 <label title="Base tracing tolerance. Slow drawing uses a tighter fit; fast drawing a looser fit.">Error <input id="tolerance" type="range" min="2" max="30" value="12" step="1"><span id="tolOut">12</span> px</label>
 <label>Snap <input id="snapDist" type="range" min="0" max="35" value="14" step="1"><span id="snapOut">14</span> px</label>
 <label>Corner <input id="corner" type="range" min="25" max="100" value="60" step="5"><span id="cornerOut">60</span>°</label>
@@ -118,7 +122,6 @@
 <label>Image size <input id="imageScale" type="range" min="10" max="400" value="100" step="5"><span id="imageScaleOut">100</span>%</label>
 <button id="clearImage">Remove image</button>
 <div class="sep"></div>
-<label>Close gaps <input id="gapSize" type="range" min="0" max="24" step="1" value="8"><span id="gapOut">8</span> px</label>
 <button id="removeFill" title="Delete just the selected filled region">Remove selected fill</button>
 <button id="clearFills">Clear all fills</button>
 </div></aside>
@@ -127,8 +130,55 @@
 (()=>{'use strict';
 const NS='http://www.w3.org/2000/svg',svg=document.querySelector('#canvas'),world=document.querySelector('#world'),art=document.querySelector('#art'),controls=document.querySelector('#controls'),background=document.querySelector('#background'),fillLayer=document.querySelector('#fills');
 const $=id=>document.getElementById(id);let mode='draw', strokes=[], selected=null, draft=null, gesture=null, pointers=new Map(),nextId=1;
-let replaceDraft=null;let simplifyBoxMode=false;let vertexChoice=null;let vertexAction=null;let snapPreview=null;let selectedIds=new Set(),nextGroup=1,selectionRect=null;let reference=null;let regions=[],fillImages=[],fillsDirty=true;let rasterCache=null,fillNodesDirty=true,selectedRegion=-1,regionColorCheckpointed=false,fillOpacity=1;let view={x:0,y:0,s:1};let undoStack=[],redoStack=[];
+let replaceDraft=null;let straightDraft=null;let straightPointer=null;let simplifyBoxMode=false;let vertexChoice=null;let vertexAction=null;let snapPreview=null;let selectedIds=new Set(),nextGroup=1,selectionRect=null;let reference=null;let regions=[],fillImages=[],fillsDirty=true;let rasterCache=null,fillNodesDirty=true,selectedRegion=-1,regionColorCheckpointed=false,fillOpacity=1;let view={x:0,y:0,s:1};let undoStack=[],redoStack=[];
 const cp=p=>({x:p.x,y:p.y}),add=(a,b)=>({x:a.x+b.x,y:a.y+b.y}),sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y}),mul=(p,k)=>({x:p.x*k,y:p.y*k}),dot=(a,b)=>a.x*b.x+a.y*b.y,len=p=>Math.hypot(p.x,p.y),dist=(a,b)=>len(sub(a,b)),norm=p=>{let l=len(p);return l>1e-9?mul(p,1/l):{x:1,y:0}};
+// Straight strokes are stored as degenerate quadratic Beziers for compatibility
+// with the existing selection, SVG export, fill, and JSON infrastructure.
+function straightSeg(a,b,first=false){return {p0:cp(a),c:mul(add(a,b),.5),p1:cp(b),cornerStart:!first}}
+function straightRebuild(st,verts){
+ st.segs=[];
+ for(let i=1;i<verts.length;i++)st.segs.push(straightSeg(verts[i-1],verts[i],i===1));
+ if(st.closed&&st.segs.length)st.segs.at(-1).p1=cp(st.segs[0].p0);
+}
+function straightVertices(st){return st.segs.length?[cp(st.segs[0].p0),...st.segs.map(s=>cp(s.p1))]:[]}
+function finishStraight(cancel=false){
+ if(!straightDraft)return;
+ const vertices=straightDraft.points;
+ if(!cancel && vertices.length>=2){
+   checkpoint();
+   const st={id:nextId++,straight:true,closed:vertices.length>2&&dist(vertices[0],vertices.at(-1))<1e-5,segs:[]};
+   straightRebuild(st,vertices);
+   strokes.push(st);
+   selected=null;selectedIds.clear();invalidateFills();
+ }
+ straightDraft=null;straightPointer=null;
+ $('finishStraight').hidden=true;
+ render();
+}
+function addStraightPoint(p){
+ if(!straightDraft){
+   const start=nearestStrokeEndpoint(p)||p;
+   straightDraft={points:[cp(start)],preview:cp(start)};
+   $('finishStraight').hidden=false;
+   $('hint').textContent='Tap/click to add corners; Enter or Finish line completes. Tap the last point again to finish.';
+   return;
+ }
+ const pts=straightDraft.points;
+ let next=nearestStrokeEndpoint(p)||p;
+ if(pts.length>=3 && dist(p,pts[0])<=Number($('snapDist').value)/view.s){
+   pts.push(cp(pts[0]));finishStraight();return;
+ }
+ if(dist(next,pts.at(-1))<Math.max(5/view.s,1e-5)){
+   finishStraight();return;
+ }
+ pts.push(cp(next));straightDraft.preview=cp(next);render();
+}
+function closestStraightVertex(st,p){
+  const v=straightVertices(st);let best=0,score=Infinity;
+  v.forEach((q,i)=>{const d=dist(q,p);if(d<score){score=d;best=i}});
+  if(st.closed&&best===v.length-1)best=0;
+  return best;
+}
 function qpoint(s,t){let u=1-t;return add(add(mul(s.p0,u*u),mul(s.c,2*u*t)),mul(s.p1,t*t))}
 // Split quadratic at t without changing its geometry.
 function splitQuadratic(seg,t){
@@ -208,10 +258,11 @@ function viewEntireDrawing(){
       if(Math.abs(denom)>1e-10){const t=(a-b)/denom;if(t>0&&t<1)include(qpoint(seg,t))}
     }
   }
-  if(!Number.isFinite(minX)){
-    if(reference){include({x:reference.x,y:reference.y});include({x:reference.x+reference.width*reference.scale,y:reference.y+reference.height*reference.scale})}
-    else return;
+  if(reference && reference.visible!==false){
+    include({x:reference.x,y:reference.y});
+    include({x:reference.x+reference.width*reference.scale,y:reference.y+reference.height*reference.scale});
   }
+  if(!Number.isFinite(minX)) return;
   const w=Math.max(1,maxX-minX),h=Math.max(1,maxY-minY);
   const margin=0.08;
   const zoom=Math.max(.15,Math.min(12,Math.min(svg.clientWidth*(1-2*margin)/w,svg.clientHeight*(1-2*margin)/h)));
@@ -523,13 +574,6 @@ function makeFillRaster(){
  const ctx=c.getContext('2d',{willReadFrequently:true});ctx.setTransform(scale,0,0,scale,-x*scale,-y*scale);
  ctx.strokeStyle='#000';ctx.lineWidth=Math.max(1.8,2/scale);ctx.lineCap='round';ctx.lineJoin='round';
  for(const st of strokes){if(!st.segs.length)continue;ctx.beginPath();ctx.moveTo(st.segs[0].p0.x,st.segs[0].p0.y);for(const seg of st.segs)ctx.quadraticCurveTo(seg.c.x,seg.c.y,seg.p1.x,seg.p1.y);ctx.stroke()}
- // Bridge nearby exposed endpoints across separate strokes, not every hidden spline junction.
- const gap=Number($('gapSize').value)/view.s;
- if(gap>0){let ends=[];for(const st of strokes){if(!st.segs.length)continue;ends.push(st.segs[0].p0,st.segs[st.segs.length-1].p1)}
-  ctx.lineWidth=Math.max(2,2/scale);for(let i=0;i<ends.length;i++)for(let j=i+1;j<ends.length;j++){
-   const d=dist(ends[i],ends[j]);if(d>.01&&d<=gap){ctx.beginPath();ctx.moveTo(ends[i].x,ends[i].y);ctx.lineTo(ends[j].x,ends[j].y);ctx.stroke()}
-  }
- }
  const pix=ctx.getImageData(0,0,w,h).data,wall=new Uint8Array(w*h);
  for(let i=0;i<wall.length;i++)wall[i]=pix[4*i+3]>64?1:0;
  return rasterCache={x,y,w,h,scale,wall};
@@ -632,6 +676,124 @@ function recolorCachedRegion(index,color,style="solid",gradientAngle=90){
   pix.data[j]=Math.round(rgb[0]*light+255*(1-light)*.3);pix.data[j+1]=Math.round(rgb[1]*light+255*(1-light)*.3);pix.data[j+2]=Math.round(rgb[2]*light+255*(1-light)*.3);pix.data[j+3]=255}
  ctx.putImageData(pix,0,0);image.data=canvas.toDataURL('image/png');fillNodesDirty=true;return true;
 }
+// Track filled areas by their enclosing vector boundary, not just the
+// original tap coordinate. The area centroid follows reshaped polygons.
+function strokeOutline(st){
+ const pts=[];
+ for(const seg of st.segs||[])for(let k=0;k<12;k++)pts.push(qpoint(seg,k/12));
+ if(st.segs?.length)pts.push(cp(st.segs.at(-1).p1));
+ return pts;
+}
+function enclosedStroke(st){
+ return !!(st?.segs?.length && (st.closed || dist(st.segs[0].p0,st.segs.at(-1).p1)<.0001));
+}
+function polygonContains(pts,p){
+ let inside=false;
+ for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+  const a=pts[i],b=pts[j];
+  if((a.y>p.y)!==(b.y>p.y) && p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x)inside=!inside;
+ }
+ return inside;
+}
+function outlineArea(pts){let v=0;for(let i=0,j=pts.length-1;i<pts.length;j=i++)v+=pts[j].x*pts[i].y-pts[i].x*pts[j].y;return Math.abs(v)/2}
+function outlineCentroid(pts){
+ let area=0,x=0,y=0;
+ for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+  const cr=pts[j].x*pts[i].y-pts[i].x*pts[j].y;
+  area+=cr;x+=(pts[j].x+pts[i].x)*cr;y+=(pts[j].y+pts[i].y)*cr;
+ }
+ if(Math.abs(area)<1e-7)return null;
+ return {x:x/(3*area),y:y/(3*area)};
+}
+function findRegionAnchor(p){
+ let chosen=null,best=Infinity;
+ for(const st of strokes){
+  if(!enclosedStroke(st))continue;
+  const pts=strokeOutline(st);
+  if(!polygonContains(pts,p))continue;
+  const area=outlineArea(pts);
+  if(area<best){best=area;chosen={strokeId:st.id}}
+ }
+ return chosen;
+}
+function resolveFillSeed(region,r){
+ const st=region.anchor&&strokeById(region.anchor.strokeId);
+ if(!st||!enclosedStroke(st))return region;
+ const pts=strokeOutline(st),center=outlineCentroid(pts);
+ if(center && polygonContains(pts,center))return center;
+ // For nonconvex outlines, move inward from an interior sample.
+ for(const seg of st.segs)for(const t of [.2,.5,.8]){
+  const sample=qpoint(seg,t);
+  const toward=center||region;
+  for(const alpha of [.1,.25,.5,.75]){
+   const p=add(mul(sample,1-alpha),mul(toward,alpha));
+   if(polygonContains(pts,p))return p;
+  }
+ }
+ return region;
+}
+// A closed vector stroke defines a fill directly. Do not flood from an old
+// click location after its vertices move: the click may be outside the shape.
+function closedStrokeFill(st,color,style='solid',angle=90){
+ if(!enclosedStroke(st))return null;
+ const bb=bbox(st),pad=2,x=bb.x0-pad,y=bb.y0-pad;
+ const ww=Math.max(1,bb.x1-bb.x0+2*pad),hh=Math.max(1,bb.y1-bb.y0+2*pad);
+ const scale=Math.min(3,2048/ww,2048/hh,Math.sqrt(2700000/(ww*hh)));
+ const cw=Math.max(1,Math.ceil(ww*scale)),ch=Math.max(1,Math.ceil(hh*scale));
+ const c=document.createElement('canvas');c.width=cw;c.height=ch;
+ const ctx=c.getContext('2d',{willReadFrequently:true});
+ ctx.setTransform(scale,0,0,scale,-x*scale,-y*scale);
+ ctx.beginPath();ctx.moveTo(st.segs[0].p0.x,st.segs[0].p0.y);
+ for(const seg of st.segs)ctx.quadraticCurveTo(seg.c.x,seg.c.y,seg.p1.x,seg.p1.y);
+ ctx.closePath();ctx.fillStyle='#000';ctx.fill('evenodd');
+ const raw=ctx.getImageData(0,0,cw,ch).data;
+ const mask=new Uint8Array(cw*ch);
+ let n=0;
+ for(let i=0;i<mask.length;i++)if(raw[4*i+3]>80){mask[i]=1;n++}
+ if(n<4)return null;
+ const image={x,y,w:cw/scale,h:ch/scale,cw,ch,mask,data:''};
+ // Use the same palette/gradient math as cached raster fills.
+ const out=document.createElement('canvas');out.width=cw;out.height=ch;
+ const outCtx=out.getContext('2d'),pix=outCtx.createImageData(cw,ch);
+ const rgb=[1,3,5].map(i=>parseInt(color.slice(i,i+2),16));
+ const a=angle*Math.PI/180,gx=Math.cos(a),gy=Math.sin(a),reach=(Math.abs(gx)*(cw-1)+Math.abs(gy)*(ch-1))||1;
+ for(let i=0;i<mask.length;i++)if(mask[i]){
+  const xx=i%cw,yy=(i/cw)|0,j=i*4;
+  const t=style==='gradient'?Math.max(0,Math.min(1,.5+((xx-(cw-1)/2)*gx+(yy-(ch-1)/2)*gy)/reach)):0;
+  const light=1-.43*t;
+  for(let k=0;k<3;k++)pix.data[j+k]=Math.round(rgb[k]*light+255*(1-light)*.3);
+  pix.data[j+3]=255;
+ }
+ outCtx.putImageData(pix,0,0);image.data=out.toDataURL('image/png');
+ return image;
+}
+// Rebuild a fill from the bounded face containing its seed.
+// Never fill an entire closed stroke: strokes may cross and overlap,
+// so a single stroke can surround several distinct faces.
+// Also avoid extrapolating a radial polygon when the seed escapes.
+function fillWithRepairedSeed(r,region){
+ const color=region.color,style=region.style||'solid',angle=region.gradientAngle??90;
+ // Use the user's actual click first. It belongs to one face, not an object.
+ let image=regionFromSeed(r,region,color,style,angle);
+ if(image){region.radial=false;return image}
+ // A reshaped face may have moved slightly away from the old click.
+ // Search only nearby, never jump to a different distant region.
+ const candidates=[];
+ const step=5/Math.max(view.s,0.3);
+ for(const distance of [step,2*step])for(let k=0;k<8;k++){
+  const angle=2*Math.PI*k/8;
+  candidates.push({x:region.x+Math.cos(angle)*distance,y:region.y+Math.sin(angle)*distance});
+ }
+ for(const p of candidates){
+  const candidate=regionFromSeed(r,p,color,style,angle);
+  if(!candidate)continue;
+  // Adopt a new seed only if the old seed is near the reconstructed
+  // face; otherwise drop the stale fill instead of coloring another.
+  region.x=p.x;region.y=p.y;region.radial=false;
+  return candidate;
+ }
+ return null;
+}
 function hitRegion(p){
  if(fillsDirty)buildRegions();
  for(let i=fillImages.length-1;i>=0;i--){const f=fillImages[i];
@@ -641,7 +803,7 @@ function hitRegion(p){
  }
  return -1;
 }
-function buildRegions(){fillImages=[];if(regions.length){const raster=makeFillRaster();if(raster)regions.forEach((region,index)=>{const image=region.radial?radialRegionFromSeed(raster,region,region.color,region.style||"solid",region.gradientAngle??90):regionFromSeed(raster,region,region.color,region.style||"solid",region.gradientAngle??90);if(image){image.regionIndex=index;fillImages.push(image)}})}fillsDirty=false;fillNodesDirty=true}
+function buildRegions(){fillImages=[];if(regions.length){const raster=makeFillRaster();if(raster)regions.forEach((region,index)=>{const image=fillWithRepairedSeed(raster,region);if(image){image.regionIndex=index;fillImages.push(image)}})}fillsDirty=false;fillNodesDirty=true}
 function renderRegions(){if(fillsDirty && !gesture)buildRegions();if(!fillNodesDirty)return;fillLayer.replaceChildren();for(const f of fillImages){const el=node('image',{x:f.x,y:f.y,width:f.w,height:f.h,'pointer-events':'none',opacity:fillOpacity},fillLayer);el.setAttribute('href',f.data)}fillNodesDirty=false}
 // The failed-fill overlay is separate from the redrawable controls layer.
 // Only used when even a bounded radial region cannot be constructed.
@@ -656,10 +818,9 @@ function failedFillFeedback(p){
 }
 function fillAt(p){const existing=hitRegion(p);if(existing>=0){selectedRegion=existing;regionColorCheckpointed=false;$('fillColor').value=regions[existing].color;setPickerFromHex($('fillColor').value);$('fillStyle').value=regions[existing].style||'solid';$('fillGradient').checked=$('fillStyle').value==='gradient';$('gradientAngle').value=regions[existing].gradientAngle??90;$('gradientAngleOut').textContent=$('gradientAngle').value+'°';updateFillSwatch();$('hint').textContent='Region selected. Change Fill color or Fill type (Solid / Gradient) to update it immediately.';render();return}selectedRegion=-1;const raster=makeFillRaster();if(!raster){alert('Draw some boundaries first.');return}
  const newColor=$('fillColor').value;
- const closedImage=regionFromSeed(raster,p,newColor,$('fillStyle').value,Number($('gradientAngle').value));
- const image=closedImage||radialRegionFromSeed(raster,p,newColor,$('fillStyle').value,Number($('gradientAngle').value));
- if(!image){failedFillFeedback(p);$('hint').textContent='Could not find enough nearby boundaries to create a bounded fill.';return}
- checkpoint();regions.push({x:p.x,y:p.y,color:newColor,style:$('fillStyle').value,gradientAngle:Number($('gradientAngle').value),radial:!closedImage});selectedRegion=regions.length-1;regionColorCheckpointed=false;fillsDirty=true;render();
+ const image=regionFromSeed(raster,p,newColor,$('fillStyle').value,Number($('gradientAngle').value));
+ if(!image){failedFillFeedback(p);$('hint').textContent='No enclosed region at this point. Close the boundary to fill it.';return}
+ checkpoint();regions.push({x:p.x,y:p.y,color:newColor,style:$('fillStyle').value,gradientAngle:Number($('gradientAngle').value),radial:false});selectedRegion=regions.length-1;regionColorCheckpointed=false;fillsDirty=true;render();
 }
 function renderReference(){
  background.replaceChildren();
@@ -671,6 +832,17 @@ function renderReference(){
 let renderQueued=false;function scheduleRender(){if(renderQueued)return;renderQueued=true;requestAnimationFrame(()=>{renderQueued=false;render()})}
 function render(){refreshSegmentButton();art.replaceChildren();controls.replaceChildren();renderReference();renderRegions();for(let st of strokes){
  node('path',{d:dpath(st.segs),fill:'none',stroke:selectedIds.has(st.id)?'#1e66e5':'#17212e','stroke-width':(selectedIds.has(st.id)?3.2:2.5)/view.s,'stroke-linecap':'round','stroke-linejoin':'round'},art);tangentMarkers(st.segs)}
+if(straightDraft){
+ const pts=straightDraft.points;
+ if(pts.length){
+   const path='M '+pts.map(p=>p.x+' '+p.y).join(' L ');
+   node('path',{d:path,fill:'none',stroke:'#17212e','stroke-width':2.5/view.s,'pointer-events':'none'},art);
+   if(straightDraft.preview && dist(pts.at(-1),straightDraft.preview)>0.1/view.s)
+     node('line',{x1:pts.at(-1).x,y1:pts.at(-1).y,x2:straightDraft.preview.x,y2:straightDraft.preview.y,stroke:'#6077c5','stroke-width':2/view.s,'stroke-dasharray':`${5/view.s} ${4/view.s}`,'pointer-events':'none'},controls);
+   for(const v of pts)node('circle',{cx:v.x,cy:v.y,r:3/view.s,fill:'#1e66e5','pointer-events':'none'},controls);
+ }
+}
+if(mode==='edit'){for(const st of strokes){if(!st.straight||!selectedIds.has(st.id))continue;for(const v of straightVertices(st))node('circle',{cx:v.x,cy:v.y,r:5/view.s,fill:'#fff',stroke:'#1e66e5','stroke-width':2/view.s,'pointer-events':'none'},controls)}}
 // Frozen spline segments are drawn as soon as they are committed.
 // The only temporary raw ink is the tail that has not yet been frozen.
 if(draft){
@@ -901,13 +1073,14 @@ function selectionBounds(ids){let all=ids.map(id=>strokeById(id)).filter(Boolean
 function scaleSelection(bases,anchor,fx,fy){for(let [id,segs] of bases){let st=strokeById(id);if(!st)continue;st.segs=segs.map(seg=>({...Object.fromEntries(['p0','c','p1'].map(k=>[k,{x:anchor.x+(seg[k].x-anchor.x)*fx,y:anchor.y+(seg[k].y-anchor.y)*fy}])),cornerStart:!!seg.cornerStart}))} }
 function moveStroke(st,delta){for(let s of st.segs){s.p0=add(s.p0,delta);s.c=add(s.c,delta);s.p1=add(s.p1,delta)}}
 function toggleReferenceVisibility(){if(!reference)return;reference.visible=reference.visible===false;$('imageVisible').checked=reference.visible;render()}
-function setMode(next){simplifyBoxMode=next==='simplify';mode=next;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));$('hint').textContent=({replace:'Start on an existing line, draw a new path, and release back on the SAME line. Only the intervening part is replaced. For closed loops, the shorter arc is replaced.',draw:'Start or end near an existing endpoint to snap to it, creating a connected corner without matching tangents. A green ring shows snapped starts. Snap slider sets distance; 0 turns snapping off. Two fingers zoom/pan.',move:'Drag empty space for a selection box. Shift-click or toggle Add selection to add strokes. Group makes them move together.',edit:'Drag anywhere on a blue stroke to reshape it. Drag directly on a corner junction to move the corner and change its angle. Influence controls the surrounding deformation.',slope:'Drag a blue line to rotate its tangent at that point; endpoints work too. Purple junctions retain their corners.',pan:'One finger pans. Pinch with two fingers to zoom.',image:'Drag anywhere to reposition the reference image. Use Image size to scale it independently.',vertex:'Edit Points (E): open Options, choose Add vertex, Round corner, Make corner, or Delete junction, then tap the line or junction. This is not the Reshape tool.',cut:'Cut (C): drag a rectangle to delete every portion of the lines inside it. The remaining portions become independent strokes.',simplify:'Simplify (B): draw a rectangle across a line section. It must contain more quadratic segments than the 1- or 2-curve target in Options. Look at the status text for the result.',fill:'Tap a filled region to select it, then change Fill color to recolor it instantly. Tap an unfilled enclosed region to create a new fill.'})[mode];render()}
+function setMode(next){if(straightDraft&&next!=='straight')finishStraight();simplifyBoxMode=next==='simplify';mode=next;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));$('hint').textContent=({straight:'Click/tap a start point and then each corner. Enter or Finish line completes the stroke. In Reshape, drag a vertex to move that endpoint; lines remain straight.',replace:'Start on an existing line, draw a new path, and release back on the SAME line. Only the intervening part is replaced. For closed loops, the shorter arc is replaced.',draw:'Start or end near an existing endpoint to snap to it, creating a connected corner without matching tangents. A green ring shows snapped starts. Snap slider sets distance; 0 turns snapping off. Two fingers zoom/pan.',move:'Drag empty space for a selection box. Shift-click or toggle Add selection to add strokes. Group makes them move together.',edit:'Drag anywhere on a blue stroke to reshape it. Drag directly on a corner junction to move the corner and change its angle. Influence controls the surrounding deformation.',slope:'Drag a blue line to rotate its tangent at that point; endpoints work too. Purple junctions retain their corners.',pan:'One finger pans. Pinch with two fingers to zoom.',image:'Drag anywhere to reposition the reference image. Use Image size to scale it independently.',vertex:'Edit Points (E): open Options, choose Add vertex, Round corner, Make corner, or Delete junction, then tap the line or junction. This is not the Reshape tool.',cut:'Cut (C): drag a rectangle to delete every portion of the lines inside it. The remaining portions become independent strokes.',simplify:'Simplify (B): draw a rectangle across a line section. It must contain more quadratic segments than the 1- or 2-curve target in Options. Look at the status text for the result.',fill:'Tap a filled region to select it, then change Fill color to recolor it instantly. Tap an unfilled enclosed region to create a new fill.'})[mode];render()}
 function start(e){if(e.button!==undefined&&e.button!==0&&e.button!==1)return;e.preventDefault();svg.setPointerCapture(e.pointerId);let scr=screenPoint(e),p=worldPoint(e);pointers.set(e.pointerId,scr);
 // Middle mouse drag temporarily pans, irrespective of the selected tool.
 if(e.pointerType==='mouse'&&e.button===1){gesture={kind:'pan',last:scr,middle:true};return}
 if(pointers.size===2){if(gesture?.kind==='replace')replaceDraft=null;if(gesture?.kind==='draw') {draft=null;render()}let a=[...pointers.values()];gesture={kind:'pinch',startView:{...view},center:mul(add(a[0],a[1]),.5),distance:dist(a[0],a[1])};return}
 if(pointers.size>2)return;
 if(mode==='pan'){gesture={kind:'pan',last:scr};return}
+if(mode==='straight'){addStraightPoint(p);gesture={kind:'straightTap'};render();return}
 if(mode==='image'){gesture=reference?{kind:'image',last:p}:null;return}
 if(mode==='replace'){const anchor=nearestReplacePoint(p);if(!anchor){$('hint').textContent='Start directly on an existing line.';gesture=null;return}replaceDraft={start:anchor,raw:[cp(anchor.point)],target:null};gesture={kind:'replace'};render();return}
 if(mode==='draw'){const snap=nearestStrokeEndpoint(p);draft=newDraft(snap||p);draft.snappedStart=!!snap;snapPreview=null;gesture={kind:'draw'};render();return}
@@ -963,6 +1136,10 @@ if(mode==='edit'&&id!==null){
   if(!selectedIds.has(id))selectHit(id,false);
   let ids=[...selectedIds];
   checkpoint();
+  if(ids.length===1 && strokeById(id)?.straight){
+    const st=strokeById(id),idx=closestStraightVertex(st,p);
+    gesture={kind:'straightVertex',id,index:idx,base:straightVertices(st),origin:p};render();return;
+  }
   if(ids.length===1 && strokeById(id)?.group==null){
     const st=strokeById(id); let near=-1, best=17/view.s;
     for(let i=1;i<st.segs.length;i++){
@@ -988,10 +1165,15 @@ if(mode==='edit'&&id!==null){
   render();return;
 }
 if(!additive){selectedIds.clear();selected=null}gesture=null;render();}
-function move(e){if(!pointers.has(e.pointerId))return;e.preventDefault();let s=screenPoint(e),p=worldPoint(e);pointers.set(e.pointerId,s);if(gesture?.kind==='pinch'&&pointers.size>=2){let a=[...pointers.values()],mid=mul(add(a[0],a[1]),.5),distance=dist(a[0],a[1]);let old=gesture.startView,zoom=Math.max(.15,Math.min(12,old.s*distance/(gesture.distance||1))),w={x:(gesture.center.x-old.x)/old.s,y:(gesture.center.y-old.y)/old.s};view={s:zoom,x:mid.x-zoom*w.x,y:mid.y-zoom*w.y};render();return}
+function move(e){if(mode==='straight'&&straightDraft&&!pointers.has(e.pointerId)){straightDraft.preview=worldPoint(e);scheduleRender();return}if(!pointers.has(e.pointerId))return;e.preventDefault();let s=screenPoint(e),p=worldPoint(e);pointers.set(e.pointerId,s);if(gesture?.kind==='pinch'&&pointers.size>=2){let a=[...pointers.values()],mid=mul(add(a[0],a[1]),.5),distance=dist(a[0],a[1]);let old=gesture.startView,zoom=Math.max(.15,Math.min(12,old.s*distance/(gesture.distance||1))),w={x:(gesture.center.x-old.x)/old.s,y:(gesture.center.y-old.y)/old.s};view={s:zoom,x:mid.x-zoom*w.x,y:mid.y-zoom*w.y};render();return}
 if(pointers.size!==1||!gesture)return;
 if(gesture.kind==='pan'){view.x+=s.x-gesture.last.x;view.y+=s.y-gesture.last.y;gesture.last=s;render()}
 else if(gesture.kind==='image'){if(reference){reference.x+=p.x-gesture.last.x;reference.y+=p.y-gesture.last.y;gesture.last=p;render()}}
+else if(gesture.kind==='straightVertex'){
+  const g=gesture,st=strokeById(g.id),v=g.base.map(cp),d=sub(p,g.origin);
+  v[g.index]=add(v[g.index],d);if(st.closed&&g.index===0)v[v.length-1]=cp(v[0]);
+  straightRebuild(st,v);render();
+}
 else if(gesture.kind==='replace'){if(dist(replaceDraft.raw.at(-1),p)>0.6/view.s)replaceDraft.raw.push(cp(p));let hit=nearestReplacePoint(p,replaceDraft.start.id);replaceDraft.target=hit && replaceDraft.raw.length>4?hit:null;scheduleRender()}
 else if(gesture.kind==='draw'){snapPreview=snapDraftEndpoint(p);updateDrawingSpeed(p,e.timeStamp);updateDraft(p);scheduleRender()}
 else if(gesture.kind==='box'||gesture.kind==='simplifybox'||gesture.kind==='cutbox'){selectionRect.b=p;render()}
@@ -1067,7 +1249,7 @@ function mergePair(a,b){const points=[];for(let i=0;i<=24;i++)points.push(qpoint
 // Tests the actual locus of both curves, and also guards tangents at the
 // untouched outer ends so merging cannot perturb adjacent geometry.
 function autoSimplifyStroke(st, maxScreenError=2.5){
- if(!st || !st.segs || st.segs.length<2)return 0;
+ if(!st || st.straight || !st.segs || st.segs.length<2)return 0;
  const tol=maxScreenError/Math.max(view.s,0.01);
  const angleLimit=Math.cos(13*Math.PI/180);
  const safeDir=(v)=>len(v)>1e-7?norm(v):null;
@@ -1220,7 +1402,7 @@ function simplifySelected(){if(!selectedIds.size)return;const threshold=Number($
  for(const id of selectedIds){const st=strokeById(id);if(!st)continue;for(let iter=0;iter<500;iter++){let best=null;for(let i=1;i<st.segs.length;i++){if(st.segs[i].cornerStart)continue;const fit=mergePair(st.segs[i-1],st.segs[i]);if(fit.maxErr<=threshold&&(!best||fit.maxErr<best.maxErr))best={i,...fit}}if(!best)break;st.segs.splice(best.i-1,2,best.seg);removed++}}
  vertexChoice=null;invalidateFills();render();$('hint').textContent=`Simplified ${removed} spline junctions (maximum local deviation ${$('simplifyTol').value} px).`;
 }
-function end(e){if(!pointers.has(e.pointerId))return;e.preventDefault();pointers.delete(e.pointerId);if(gesture?.kind==='pinch'){if(pointers.size<2)gesture=null;return}if(gesture?.kind==='replace'&&replaceDraft){
+function end(e){if(!pointers.has(e.pointerId))return;e.preventDefault();pointers.delete(e.pointerId);if(gesture?.kind==='pinch'){if(pointers.size<2)gesture=null;return}if(gesture?.kind==='straightTap'){gesture=null;return}if(gesture?.kind==='replace'&&replaceDraft){
  const r=replaceDraft, hit=nearestReplacePoint(worldPoint(e),r.start.id);
  if(hit&&r.raw.length>=3&&dist(hit.point,r.start.point)>2/view.s){
   const st=strokeById(r.start.id),points=[cp(r.start.point),...r.raw.slice(1,-1),cp(hit.point)];
@@ -1249,6 +1431,7 @@ $('removeVertex').onclick=()=>chooseVertexAction('remove');
 $('smoothVertex').onclick=()=>chooseVertexAction('smooth');
 $('cornerVertex').onclick=()=>chooseVertexAction('corner');
 
+$('finishStraight').onclick=()=>finishStraight();
 $('simplify').onclick=()=>setMode('simplify');$('simplifyBox').onclick=()=>setMode('simplify');$('simplifyTol').oninput=e=>$('simplifyOut').textContent=e.target.value;
 $('corner').oninput=e=>$('cornerOut').textContent=e.target.value;
 $('snapDist').oninput=e=>$('snapOut').textContent=e.target.value;
@@ -1272,7 +1455,7 @@ $('imageVisible').onchange=e=>{if(reference){reference.visible=e.target.checked;
 $('imageOpacity').oninput=e=>{if(!reference)return;reference.opacity=Number(e.target.value)/100;$('imageOpacityOut').textContent=e.target.value;render()};
 $('imageScale').oninput=e=>{if(!reference)return;let target=Number(e.target.value)/100,old=reference.scale;reference.x+=(reference.width*(old-target))/2;reference.y+=(reference.height*(old-target))/2;reference.scale=target;$('imageScaleOut').textContent=e.target.value;render()};
 $('clearImage').onclick=()=>{if(reference){checkpoint();reference=null;syncReferenceControls();render()}};
-$('gapSize').oninput=()=>{$('gapOut').textContent=$('gapSize').value;invalidateFills();render()};
+
 
 $('removeFill').onclick=()=>{if(selectedRegion<0||!regions[selectedRegion]){$('hint').textContent='Choose Fill region and tap a filled area first.';return}checkpoint();regions.splice(selectedRegion,1);selectedRegion=-1;invalidateFills();render()};
 function updateFillSwatch(){const color=$('fillColor').value,angle=Number($('gradientAngle').value);$('fillPopupToggle').style.background=$('fillGradient').checked?`linear-gradient(${angle+90}deg,${color},#ffffff)`:color;}
@@ -1405,8 +1588,63 @@ setPickerFromHex($('fillColor').value);
 $('fillPopupToggle').onclick=()=>toggleFillPopup();updateFillSwatch();
 $('optionsToggle').onclick=()=>toggleOptions(!$('optionsPanel').classList.contains('open'));
 $('closeOptions').onclick=()=>toggleOptions(false);
-function download(data,name,type){let url=URL.createObjectURL(new Blob([data],{type})),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-$('export').onclick=()=>{if(fillsDirty)buildRegions();let fills=fillImages.map(f=>`<image x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" opacity="${fillOpacity}" href="${f.data}"/>`).join('\n');let paths=strokes.map(st=>`<path d="${dpath(st.segs)}" fill="none" stroke="#17212e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`).join('\n');download(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${-view.x/view.s} ${-view.y/view.s} ${svg.clientWidth/view.s} ${svg.clientHeight/view.s}">${fills}${paths}</svg>`,nameForSave()+'.svg','image/svg+xml')};
+function download(data,name,type){let url=URL.createObjectURL(data instanceof Blob?data:new Blob([data],{type})),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+// Use geometry, not the viewport. Quadratic extrema give the exact
+// vector bounds; the visible reference image is included at any opacity.
+function artworkBounds(){
+ let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+ const addPoint=p=>{if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y))return;
+   x0=Math.min(x0,p.x);x1=Math.max(x1,p.x);y0=Math.min(y0,p.y);y1=Math.max(y1,p.y)};
+ for(const st of strokes)for(const seg of st.segs||[]){
+  addPoint(seg.p0);addPoint(seg.p1);
+  for(const axis of ['x','y']){
+   const a=seg.p0[axis],b=seg.c[axis],c=seg.p1[axis],denom=a-2*b+c;
+   if(Math.abs(denom)>1e-10){const t=(a-b)/denom;if(t>0&&t<1)addPoint(qpoint(seg,t))}
+  }
+ }
+ if(reference&&reference.visible!==false){
+  addPoint({x:reference.x,y:reference.y});
+  addPoint({x:reference.x+reference.width*reference.scale,y:reference.y+reference.height*reference.scale});
+ }
+ if(!Number.isFinite(x0))return null;
+ // A little padding keeps the stroke from being cropped.
+ const pad=4;
+ return {x:x0-pad,y:y0-pad,w:Math.max(1,x1-x0)+2*pad,h:Math.max(1,y1-y0)+2*pad};
+}
+function exportSceneSvg(bounds=null){
+ if(fillsDirty)buildRegions();
+ const b=bounds||{x:-view.x/view.s,y:-view.y/view.s,w:svg.clientWidth/view.s,h:svg.clientHeight/view.s};
+ const parts=[];
+ if(reference && reference.visible!==false){
+   parts.push(`<image x="${reference.x}" y="${reference.y}" width="${reference.width*reference.scale}" height="${reference.height*reference.scale}" preserveAspectRatio="none" opacity="${reference.opacity??1}" href="${reference.data}"/>`);
+ }
+ parts.push(...fillImages.map(f=>`<image x="${f.x}" y="${f.y}" width="${f.w}" height="${f.h}" opacity="${fillOpacity}" href="${f.data}"/>`));
+ parts.push(...strokes.map(st=>`<path d="${dpath(st.segs)}" fill="none" stroke="#17212e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`));
+ return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${b.x} ${b.y} ${b.w} ${b.h}">${parts.join('\\n')}</svg>`;
+}
+async function exportRaster(kind='png'){
+ try{
+   const bounds=artworkBounds();
+   if(!bounds){alert('Nothing to export.');return}
+   const svgText=exportSceneSvg(bounds);
+   const url=URL.createObjectURL(new Blob([svgText],{type:'image/svg+xml;charset=utf-8'}));
+   const img=new Image();
+   try{await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=url})}finally{URL.revokeObjectURL(url)}
+   // Export at up to 2 pixels per drawing unit, capped to safe dimensions.
+   const scale=Math.min(2,4096/Math.max(bounds.w,bounds.h),Math.sqrt(16000000/(bounds.w*bounds.h)));
+   const w=Math.max(1,Math.round(bounds.w*scale)), h=Math.max(1,Math.round(bounds.h*scale));
+   const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+   const ctx=canvas.getContext('2d');
+   ctx.fillStyle='#ffffff';ctx.fillRect(0,0,w,h);
+   ctx.drawImage(img,0,0,w,h);
+   const mime=kind==='jpg'?'image/jpeg':'image/png';
+   const ext=kind==='jpg'?'jpg':'png';
+   canvas.toBlob(blob=>{if(!blob){alert('Could not export image.');return}download(blob,nameForSave()+'.'+ext,mime)},mime,kind==='jpg'?.92:undefined);
+ }catch(err){alert('Could not export raster image: '+err.message)}
+}
+$('export').onclick=()=>{download(exportSceneSvg(),nameForSave()+'.svg','image/svg+xml')};
+$('exportPng').onclick=()=>exportRaster('png');
+$('exportJpg').onclick=()=>exportRaster('jpg');
 // Round only the exported data; do not alter in-memory editing precision.
 function compactStrokes(){
   const round=n=>Math.round(n*1000)/1000;
@@ -1417,22 +1655,58 @@ function compactStrokes(){
     ...(seg.cornerStart?{cornerStart:true}:{})
   }))}));
 }
-$('save').onclick=()=>{download(JSON.stringify({format:'spline-sketch-v4',strokes:compactStrokes(),reference,regions,fillOpacity,drawingName:nameForSave()},null,2),nameForSave()+'.json','application/json')};$('load').onclick=()=>$('file').click();$('file').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let obj=JSON.parse(await f.text());if(!Array.isArray(obj.strokes)||!obj.strokes.every(st=>Array.isArray(st.segs)))throw Error('Not a sketch file');checkpoint();$('drawingName').value=(obj.drawingName||f.name.replace(/\.json$/i,''));nameForSave();strokes=obj.strokes;reference=obj.reference||null;regions=obj.regions||[];fillOpacity=obj.fillOpacity??1;$('fillOpacity').value=Math.round(fillOpacity*100);$('fillOpacityOut').textContent=Math.round(fillOpacity*100)+'%';selectedRegion=-1;regionColorCheckpointed=false;invalidateFills();syncReferenceControls();nextId=1+Math.max(0,...strokes.map(s=>s.id));selected=null;selectedIds.clear();nextGroup=1+Math.max(0,...strokes.map(st=>st.group||0));render()}catch(err){alert('Could not open drawing: '+err.message)}e.target.value=''};
+let sketchFileHandle=null;
+async function saveJson(){
+ const data=JSON.stringify({format:'spline-sketch-v4',strokes:compactStrokes(),reference,regions,fillOpacity,drawingName:nameForSave()},null,2);
+ if(window.showSaveFilePicker){
+  try{
+   if(!sketchFileHandle)sketchFileHandle=await window.showSaveFilePicker({suggestedName:nameForSave()+'.json',types:[{description:'Spline Sketch JSON',accept:{'application/json':['.json']}}]});
+   const writable=await sketchFileHandle.createWritable();await writable.write(data);await writable.close();
+   $('hint').textContent='Saved '+sketchFileHandle.name+' (subsequent saves overwrite this file).';
+   return;
+  }catch(err){
+   if(err.name==='AbortError')return;
+   $('hint').textContent='Direct save unavailable: '+err.message;
+   return;
+  }
+ }
+ // Safari does not grant ordinary webpages write access to existing files.
+ // Keep normal Download as fallback; it may append (1), (2), etc.
+ download(data,nameForSave()+'.json','application/json');
+ $('hint').textContent='Downloaded JSON. This browser cannot overwrite an existing download; Chrome or Edge on desktop supports direct save.';
+}
+$('save').onclick=saveJson;
+$('load').onclick=async()=>{
+ if(window.showOpenFilePicker){
+  try{
+   const options={id:'spline-sketch-json',multiple:false,types:[{description:'Spline Sketch JSON',accept:{'application/json':['.json']}}]};
+   if(sketchFileHandle)options.startIn=sketchFileHandle;
+   const handles=await window.showOpenFilePicker(options);
+   sketchFileHandle=handles[0];
+   const f=await sketchFileHandle.getFile();await loadSketchFile(f);return;
+  }catch(err){if(err.name==='AbortError')return;sketchFileHandle=null}
+ }
+ $('file').click();
+};
+async function loadSketchFile(f){try{let obj=JSON.parse(await f.text());if(!Array.isArray(obj.strokes)||!obj.strokes.every(st=>Array.isArray(st.segs)))throw Error('Not a sketch file');checkpoint();$('drawingName').value=(obj.drawingName||f.name.replace(/\.json$/i,''));nameForSave();strokes=obj.strokes;reference=obj.reference||null;regions=obj.regions||[];fillOpacity=obj.fillOpacity??1;$('fillOpacity').value=Math.round(fillOpacity*100);$('fillOpacityOut').textContent=Math.round(fillOpacity*100)+'%';selectedRegion=-1;regionColorCheckpointed=false;invalidateFills();syncReferenceControls();nextId=1+Math.max(0,...strokes.map(s=>s.id));selected=null;selectedIds.clear();nextGroup=1+Math.max(0,...strokes.map(st=>st.group||0));render()}catch(err){alert('Could not open drawing: '+err.message)}}
+$('file').onchange=async e=>{const f=e.target.files?.[0];if(f){sketchFileHandle=null;await loadSketchFile(f)}e.target.value=''};
 $('undoSegment').addEventListener('pointerdown',e=>e.stopPropagation());$('undoSegment').onclick=backSegment;
 window.addEventListener('keydown',e=>{
  const target=e.target;
  const typing=target?.isContentEditable || ['INPUT','TEXTAREA','SELECT'].includes(target?.tagName);
  if(e.key==='Escape'){
+   if(straightDraft){e.preventDefault();finishStraight(true);return}
    if(draft && gesture?.kind==='draw'){e.preventDefault();backSegment();return}
    if(!$('fillPopup').hidden){toggleFillPopup(false);e.preventDefault();return}
    if($('optionsPanel').classList.contains('open')){toggleOptions(false);e.preventDefault();return}
  }
+ if(e.key==='Enter'&&straightDraft){e.preventDefault();finishStraight();return}
  const mod=e.metaKey||e.ctrlKey;
  if(mod && e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();return}
  if(typing || mod || e.altKey || e.repeat)return;
  const key=e.key.toLowerCase();
  const actions={
-  d:()=>setMode('draw'),t:()=>setMode('replace'),w:()=>setMode('move'),v:viewEntireDrawing,m:()=>setMode('edit'),
+  d:()=>setMode('draw'),a:()=>setMode('straight'),t:()=>setMode('replace'),w:()=>setMode('move'),v:viewEntireDrawing,m:()=>setMode('edit'),
   f:()=>setMode('fill'),s:()=>setMode('slope'),e:()=>setMode('vertex'),
   b:()=>setMode('simplify'),c:()=>setMode('cut'),p:()=>setMode('pan'),i:toggleReferenceVisibility,h:()=>setMode('image'),
   o:()=>$('optionsToggle').click(),u:undo,r:redo,k:backSegment,
